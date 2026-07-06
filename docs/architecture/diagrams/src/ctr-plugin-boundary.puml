@@ -1,0 +1,66 @@
+@startuml ctr-plugin-boundary
+title ClubGear — Plugin Boundary / Compliance
+
+package "Third-Party Plugin Assembly" {
+  [Plugin Module]
+  [Plugin Handlers]
+}
+
+package "ClubGear.Plugin.Contracts" {
+  interface IPluginModule
+  interface IPluginRuntimeBridge
+  interface IPluginInstallerService
+  interface IExtensionAuditFacade
+  interface IExtensionNotificationFacade
+  interface IExtensionPermissionFacade
+}
+
+package "ClubGear Core" {
+  [PluginEndpointRegistrar]
+  [PluginRuntimeAdapter]
+  [PluginIntegrityVerifier]
+  [PluginInstallerService]
+  [ExtensionAuditFacade]
+  [ExtensionNotificationFacade]
+  [ExtensionPermissionFacade]
+  [ContractCompatibilityService]
+}
+
+package "Forbidden Core Namespaces" {
+  [ClubGear.Services]
+  [ClubGear.Data]
+  [ClubGear.Controllers]
+  [ClubGear.Models]
+}
+
+[Plugin Module] ..> IPluginModule : implements
+[Plugin Handlers] ..> IPluginRuntimeBridge : uses bridge
+[Plugin Handlers] ..> IExtensionAuditFacade : audit only via facade
+[Plugin Handlers] ..> IExtensionNotificationFacade : notifications only via facade
+[Plugin Handlers] ..> IExtensionPermissionFacade : permissions only via facade
+
+PluginRuntimeAdapter ..> IExtensionAuditFacade
+PluginRuntimeAdapter ..> IExtensionNotificationFacade
+PluginRuntimeAdapter ..> IExtensionPermissionFacade
+PluginEndpointRegistrar ..> PluginRuntimeAdapter
+PluginInstallerService ..> PluginIntegrityVerifier
+PluginInstallerService ..> ContractCompatibilityService
+PluginInstallerService ..> IPluginInstallerService : implements
+
+[Plugin Module] ..> [ClubGear.Services] : forbidden
+[Plugin Module] ..> [ClubGear.Data] : forbidden
+[Plugin Module] ..> [ClubGear.Controllers] : forbidden
+[Plugin Module] ..> [ClubGear.Models] : forbidden
+
+note right of PluginRuntimeAdapter
+  Ensures isolated plugin execution.
+  Blocks delegates from forbidden namespaces.
+end note
+
+note bottom of PluginInstallerService
+  Installation sources:
+  - Marketplace module id
+  - ZIP package + SHA-256 + RSA signature
+end note
+
+@enduml

@@ -1,0 +1,51 @@
+@startuml seq-ui-core-interaction
+title ClubGear — UI/Core-Interaktion (Member + SelfService + Account)
+
+actor "Admin / Verwalter" as Admin
+actor "Mitglied" as Member
+actor "Browser" as Browser
+participant "MembersController" as MembersCtrl
+participant "SelfServiceController" as SelfCtrl
+participant "AccountController" as AccountCtrl
+participant "IMemberFeatureService\n(MemberFeatureService)" as MemberSvc
+participant "ISelfServiceFeatureService\n(SelfServiceFeatureService)" as SelfSvc
+participant "IAccountFeatureService\n(AccountFeatureService)" as AccountSvc
+participant "ApplicationDbContext" as DB
+
+Admin -> Browser : Navigiert zu /Members/Index
+Browser -> MembersCtrl : GET /Members/Index?search&status
+MembersCtrl -> MemberSvc : GetListAsync(search)
+MemberSvc -> DB : Query Members + Segmente
+DB --> MemberSvc : Member-Liste
+MemberSvc --> MembersCtrl : Liste
+MembersCtrl --> Browser : View(Index)
+
+Admin -> Browser : Speichert Member-Edit
+Browser -> MembersCtrl : POST /Members/Edit/{id}
+MembersCtrl -> MemberSvc : UpdateAsync(member, actor)
+MemberSvc -> DB : UPDATE Members / MemberAddresses
+MembersCtrl --> Browser : Redirect /Members/Index + Feedback
+
+Member -> Browser : Oeffnet Selfservice
+Browser -> SelfCtrl : GET /SelfService/Index
+SelfCtrl -> SelfSvc : GetDashboardAsync(User)
+SelfSvc -> DB : Resolve verknuepftes Memberprofil
+SelfCtrl --> Browser : View(Index)
+
+Member -> Browser : Aktualisiert eigenes Profil
+Browser -> SelfCtrl : POST /SelfService/Profile
+SelfCtrl -> SelfSvc : UpdateProfileAsync(User, model)
+SelfSvc -> DB : UPDATE Members
+SelfCtrl --> Browser : Redirect /SelfService/Profile
+
+Browser -> AccountCtrl : GET /Account/Login
+Browser -> AccountCtrl : POST /Account/Login
+AccountCtrl -> AccountSvc : LoginAsync(email, password)
+AccountSvc -> DB : Identity-Login + User-Abgleich
+AccountCtrl --> Browser : Redirect /SelfService oder returnUrl
+
+Browser -> AccountCtrl : POST /Account/Logout
+AccountCtrl -> AccountSvc : LogoutAsync()
+AccountCtrl --> Browser : Redirect /Home/Index
+
+@enduml

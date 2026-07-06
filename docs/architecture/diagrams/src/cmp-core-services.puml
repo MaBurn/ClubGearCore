@@ -1,0 +1,93 @@
+@startuml cmp-core-services
+title ClubGear — Core-Service-Komponentendiagramm
+
+package "Controllers (MVC)" {
+    [Member_Controller] as MC
+    [Account_Controller] as AC
+    [SelfService_Controller] as SC
+    [HomeController] as HC
+}
+
+package "Controllers (API)" {
+    [Member_API] as MAPI
+    [NotificationsController] as NC
+    [PluginsController] as PC
+}
+
+package "Feature Services" {
+    interface IMemberFeatureService as IMF
+    interface IAccountFeatureService as IAF
+    interface ISelfServiceFeatureService as ISF
+
+    [MemberFeatureService] as MFS
+    [AccountFeatureService] as AFS
+    [SelfServiceFeatureService] as SSFS
+}
+
+package "Core Infrastructure Services" {
+    interface IAuditLogService as IAL
+    interface IEventLogService as IEL
+    interface INotificationService as INS
+    interface IPermissionService as IPS
+    interface IApplicationSeeder as IAS
+
+    [DatabaseAuditLogService] as DALS
+    [DatabaseEventLogService] as DELS
+    [NotificationService] as NOTIS
+    [DatabasePermissionService] as DPS
+    [ApplicationSeeder] as SEEDS
+}
+
+package "Plugin-Facades" {
+    interface IExtensionAuditFacade as IEFA
+    interface IExtensionNotificationFacade as IENF
+    interface IExtensionPermissionFacade as IEPF
+
+    [ExtensionAuditFacade] as EAF
+    [ExtensionNotificationFacade] as ENF
+    [ExtensionPermissionFacade] as EPF
+}
+
+package "Plugin-System" {
+    [IPluginInstallerService] as IPIS
+    [ContractCompatibilityService] as CCS
+}
+
+database "SQLite via EF Core" as DB
+
+MC --> IMF
+MC --> IAL
+MAPI --> IMF
+AC --> IAF
+SC --> ISF
+SC --> IAL
+
+IMF <|.. MFS
+IAF <|.. AFS
+ISF <|.. SSFS
+
+MFS --> DB
+AFS --> DB
+SSFS --> DB
+DALS --> DB
+DELS --> DB
+NOTIS --> DB
+DPS --> DB
+SEEDS --> DB
+
+IAL <|.. DALS
+IEL <|.. DELS
+INS <|.. NOTIS
+IPS <|.. DPS
+
+IEFA <|.. EAF
+IENF <|.. ENF
+IEPF <|.. EPF
+
+EAF --> IAL
+ENF --> INS
+EPF --> IPS
+
+IPIS --> CCS
+
+@enduml

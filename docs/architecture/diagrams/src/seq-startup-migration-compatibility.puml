@@ -1,0 +1,54 @@
+@startuml seq-startup-migration-compatibility
+title ClubGear — Startup & Schema-Kompatibilitaets-Sequenz
+
+participant "Program.cs" as prog
+participant "ApplicationSeeder" as seeder
+participant "ApplicationDbContext" as db
+participant "SQLite DB" as sqlite
+participant "SeedTasks" as seeds
+
+prog -> seeder : SeedAsync()
+activate seeder
+
+seeder -> db : EnsureCreatedAsync()
+activate db
+db -> sqlite : Erstellt Schema falls\nnicht vorhanden
+db --> seeder : OK
+deactivate db
+
+seeder -> seeder : IsSqlite() ?
+
+group SQLite-Kompatibilitaetspfad
+    seeder -> db : GetTableColumnsAsync("Members")
+    db --> seeder : existingColumns[]
+
+    loop Fuer jede fehlende Spalte
+        seeder -> db : ExecuteSqlRawAsync(ALTER TABLE ...)
+        note right: Legacy-Spalten werden\nsicher ergaenzt
+    end
+
+    seeder -> db : EnsureMemberAddressesTableAsync()
+    note right: CREATE TABLE IF NOT EXISTS\nMemberAddresses
+
+    group Legacy-Datenmapping
+        seeder -> db : UPDATE Members SET IsVerified = NOT IsNotVerifyed
+        seeder -> db : UPDATE Members SET MemberNumber = MembershipNumber
+        seeder -> db : UPDATE Members SET MemberNumber = 'M-' || printf('%04d', Id) WHERE NULL
+        seeder -> db : UPDATE Members SET FirstName/LastName fallback
+        seeder -> db : Telefon-Mapping von PhoneNumbers-Tabelle
+        seeder -> db : Adressen-Migration von Addresses-Tabelle
+    end
+end
+
+seeder -> seeds : SeedAsync() je Task (sortiert nach Order)
+activate seeds
+seeds -> db : Seed-Daten einfuegen / pruefen
+seeds --> seeder : OK
+deactivate seeds
+
+seeder --> prog : Fertig
+deactivate seeder
+
+prog -> prog : app.Run()
+
+@enduml

@@ -1,0 +1,25 @@
+@startuml ctx-system-overview
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title ClubGear — System Context
+
+Person(admin, "Admin / Verwalter", "Verwaltet Mitglieder,\nRechte und Einstellungen")
+Person(member, "Mitglied", "Nutzt Selfservice-Portal\nfuer eigene Daten")
+Person(developer, "Plugin-Entwickler", "Erstellt Erweiterungen\nueber Plugin-Contracts")
+
+System(clubgear, "ClubGear", "ASP.NET Core 8 MVC/API\nMitgliederverwaltung mit\nPlugin-Erweiterbarkeit")
+
+System_Ext(smtp, "SMTP-Server", "E-Mail-Versand fuer\nBenachrichtigungen")
+System_Ext(keycloak, "Keycloak (optional)", "OAuth2/OIDC Identity Provider\nfuer SSO-Integration")
+System_Ext(matrix, "Matrix-Server (optional)", "Matrix-Benachrichtigungskanal")
+System_Ext(plugin, "Plugin-Assembly", "Externe .dll mit\nIPluginModule-Implementierung")
+
+Rel(admin, clubgear, "Verwaltet", "HTTPS/Browser")
+Rel(member, clubgear, "Selfservice", "HTTPS/Browser")
+Rel(developer, plugin, "Entwickelt und deployt")
+Rel(clubgear, smtp, "Sendet E-Mails", "SMTP/TLS")
+Rel(clubgear, keycloak, "Delegiert Auth (opt.)", "OAuth2/OIDC")
+Rel(clubgear, matrix, "Sendet Notifications (opt.)", "Matrix-API")
+Rel(plugin, clubgear, "Registriert sich", "Plugin-Contract-Interface")
+
+@enduml

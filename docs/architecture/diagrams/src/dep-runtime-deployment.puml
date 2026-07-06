@@ -1,0 +1,31 @@
+@startuml dep-runtime-deployment
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Deployment.puml
+
+title ClubGear — Deployment-Topologie
+
+Deployment_Node(dev, "Entwickler-Workstation", "macOS/Linux/Windows") {
+    Deployment_Node(dotnet_sdk, ".NET 8 SDK") {
+        Container(app_dev, "ClubGear (dotnet run)", "ASP.NET Core 8", "Lokale Instanz\nPort 5009 (HTTP)")
+    }
+    ContainerDb(sqlite_dev, "SQLite DB", "SQLite", "clubmanagerv0_2.dev.db\nim Projektverzeichnis")
+}
+
+Deployment_Node(docker, "Docker / CI-Umgebung", "Docker Compose") {
+    Deployment_Node(container, "clubgear-container") {
+        Container(app_docker, "ClubGear", "ASP.NET Core 8\n(Dockerfile, port 80)", "Release-Build")
+    }
+    ContainerDb(sqlite_docker, "SQLite DB", "SQLite", "per Volume mount\noder eingebettet")
+}
+
+Deployment_Node(prod, "Produktions-Server", "Linux / VPS / K8s") {
+    Deployment_Node(runtime, ".NET 8 Runtime") {
+        Container(app_prod, "ClubGear", "ASP.NET Core 8", "hinter Reverse Proxy\n(nginx / Caddy)")
+    }
+    ContainerDb(sqlite_prod, "SQLite DB", "SQLite", "persistenter Volume")
+}
+
+Rel(app_dev, sqlite_dev, "Liest/Schreibt", "EF Core / SQLite")
+Rel(app_docker, sqlite_docker, "Liest/Schreibt", "EF Core / SQLite")
+Rel(app_prod, sqlite_prod, "Liest/Schreibt", "EF Core / SQLite")
+
+@enduml

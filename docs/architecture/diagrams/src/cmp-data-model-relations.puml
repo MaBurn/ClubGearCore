@@ -1,0 +1,128 @@
+@startuml cmp-data-model-relations
+title ClubGear — Datenmodell-Entitaetsbeziehungen
+
+entity "Members" as M {
+    * Id : INTEGER PK
+    --
+    * MemberNumber : TEXT UNIQUE
+    * FirstName : TEXT
+    * LastName : TEXT
+    Email : TEXT
+    PhoneNumber : TEXT
+    DateOfBirth : TEXT
+    Gender : TEXT
+    Title : TEXT
+    IsVerified : INTEGER
+    IsActive : INTEGER
+    IsCompany : INTEGER
+    CompanyName : TEXT
+    IsClub : INTEGER
+    ClubName : TEXT
+    JoinedAt : TEXT
+    Joined : TEXT
+    Leaved : TEXT
+    RIP : INTEGER
+    FamilyMembership : INTEGER
+    MembershipDiscount : INTEGER
+    MainMemberId : INTEGER FK
+    NotifyViaEmail : INTEGER
+    NotifyViaMatrix : INTEGER
+    DataprivacyAccepted : INTEGER
+    NewsletterConsent : INTEGER
+    ProfileImagePath : TEXT
+    OauthID : TEXT UNIQUE
+    OAuthUserName : TEXT
+    ApplicationUserId : TEXT FK UNIQUE
+    KeycloakUsername : TEXT
+    PendingEmail : TEXT
+    EmailVerificationToken : TEXT
+    EmailVerificationTokenExpiry : TEXT
+    RentalPayoutOptions : TEXT
+    LastUpdated : TEXT
+}
+
+entity "MemberAddresses" as MA {
+    * Id : INTEGER PK
+    --
+    * MemberId : INTEGER FK
+    Street : TEXT
+    PostalCode : TEXT
+    City : TEXT
+    Country : TEXT
+    IsDefault : INTEGER
+}
+
+entity "AspNetUsers\n(ApplicationUser)" as AU {
+    * Id : TEXT PK
+    --
+    FullName : TEXT
+    Email : TEXT
+    UserName : TEXT
+    NormalizedEmail : TEXT
+    PasswordHash : TEXT
+    ...IdentityUser-Felder
+}
+
+entity "AppPermissions" as AP {
+    * Id : INTEGER PK
+    --
+    * Key : TEXT UNIQUE
+    Description : TEXT
+    Category : TEXT
+}
+
+entity "AppRolePermissions" as ARP {
+    * Id : INTEGER PK
+    --
+    * RoleName : TEXT
+    * PermissionKey : TEXT
+    UNIQUE(RoleName, PermissionKey)
+}
+
+entity "AuditLogs" as AL {
+    * Id : INTEGER PK
+    --
+    OccurredAtUtc : TEXT
+    Action : TEXT
+    Actor : TEXT
+    Source : TEXT
+    TargetType : TEXT
+    TargetId : TEXT
+    BeforeJson : TEXT
+    AfterJson : TEXT
+    MetadataJson : TEXT
+}
+
+entity "NotificationRecords" as NR {
+    * Id : INTEGER PK
+    --
+    CreatedAtUtc : TEXT
+    Channel : TEXT
+    Recipient : TEXT
+    Subject : TEXT
+    Body : TEXT
+    Status : TEXT
+    Error : TEXT
+    CorrelationId : TEXT
+    INDEX(Channel, CreatedAtUtc)
+}
+
+entity "SystemEventLogs" as SEL {
+    * Id : INTEGER PK
+    --
+    OccurredAtUtc : TEXT
+    Level : TEXT
+    Category : TEXT
+    Message : TEXT
+    RequestId : TEXT
+    Path : TEXT
+    Method : TEXT
+    UserName : TEXT
+    DetailsJson : TEXT
+}
+
+M ||--o{ MA : "1:N (Cascade Delete)"
+M }o--|| AU : "0..1 : 1 (optional)"
+M }o--o{ M : "Family: MainMemberId"
+
+@enduml

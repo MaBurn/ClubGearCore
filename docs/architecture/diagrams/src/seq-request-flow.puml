@@ -1,0 +1,53 @@
+@startuml seq-request-flow
+title ClubGear — HTTP-Request-Flow (Beispiel: Member Edit speichern)
+
+actor "Browser\n(Admin)" as Browser
+participant "Member_Controller\nPOST /Members/Edit/{id}" as Ctrl
+participant "IMemberFeatureService\n(MemberFeatureService)" as Svc
+participant "IAuditLogService\n(DatabaseAuditLogService)" as Audit
+participant "ApplicationDbContext\n(EF Core)" as DB
+participant "SQLite" as SQLite
+
+Browser -> Ctrl : POST /Members/Edit/42\n[FormData: Member]
+activate Ctrl
+
+Ctrl -> Ctrl : [PermissionAuthorize]\npruefen (members.manage)
+note right: 403 falls Berechtigung fehlt
+
+Ctrl -> Ctrl : ModelState.IsValid ?
+
+alt Validierung OK
+    Ctrl -> Svc : UpdateAsync(member, actor)
+    activate Svc
+
+    Svc -> DB : Members.FindAsync(id)
+    DB -> SQLite : SELECT * FROM Members WHERE Id=42
+    SQLite --> DB : Member-Zeile
+    DB --> Svc : Member entity
+
+    Svc -> Svc : Felder mappen (Before-State merken)
+
+    Svc -> DB : SaveChangesAsync()
+    DB -> SQLite : UPDATE Members SET ... WHERE Id=42
+    SQLite --> DB : OK
+    DB --> Svc : OK
+
+    Svc -> Audit : LogChangeAsync("Member.Update", before, after, actor)
+    activate Audit
+    Audit -> DB : AuditLogs.Add(entry)
+    DB -> SQLite : INSERT INTO AuditLogs ...
+    SQLite --> DB : OK
+    DB --> Audit : OK
+    deactivate Audit
+
+    Svc --> Ctrl : MemberMutationStatus.Success
+    deactivate Svc
+
+    Ctrl -> Browser : Redirect /Members/Index\n?feedback=updated
+else Validierung fehlgeschlagen
+    Ctrl --> Browser : View(member) mit\nValidierungsfehlern
+end
+
+deactivate Ctrl
+
+@enduml
