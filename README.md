@@ -69,8 +69,6 @@ The repository currently contains these plugin examples:
 |---|---|---|
 | `CarInfo` | `member-profile` | Vehicle information on member profiles and self-service pages. |
 | `Serviceheft` | `member-profile` | Service-book data that depends on the car information plugin. |
-| `Finance` | `member-profile` | Member bank details, SEPA reference data, and finance-specific pages. |
-| `Inventar` | `general-extension` | Inventory pages and admin functions. |
 
 Plugin packages are distributed as ZIP files containing a manifest and the built plugin assembly. Packaging scripts can emit checksums and signature files so the host can verify installed packages.
 
