@@ -11,6 +11,7 @@ The project is designed as a single deployable web application rather than a mic
 ClubGear helps clubs manage their operational data in one place:
 
 - Member administration with list, edit, import, verification, and deletion flows.
+- Membership types with configurable metadata fields and hierarchy-aware sub-member grouping.
 - Member self-service so authenticated members can maintain their own profile data.
 - Role and permission management backed by database-stored permissions.
 - Audit and event logging for business changes and operational diagnostics.
@@ -72,6 +73,14 @@ The repository currently contains these plugin examples:
 
 Plugin packages are distributed as ZIP files containing a manifest and the built plugin assembly. Packaging scripts can emit checksums and signature files so the host can verify installed packages.
 
+## Core Membership Model
+
+The core member model is type-driven. Administrators can define membership types, attach metadata fields to those types, and mark selected types as containers for sub-members. The `/Members` overview then renders a hierarchy where a container member, such as a company, family or club, is followed by its configured sub-members.
+
+The hierarchy is derived from `MemberReference` metadata values and `MembershipType.AllowsSubMembers`; no plugin-specific core logic or extra relationship table is required. Server-side validation prevents self-references, grandchildren and short cycles, while the member overview keeps search and type filters group-aware.
+
+See [Core Membership Hierarchy](docs/architecture/core-membership-hierarchy.md) for the full design and operational notes.
+
 ## Repository Layout
 
 | Path | Description |
@@ -125,7 +134,8 @@ ClubGear can run directly with `dotnet run` or as a container image. The reposit
 
 - `Dockerfile` for a multi-stage .NET build.
 - `docker-compose.yml` for local/container deployment.
-- `deploy.sh` and `build-and-export.sh` for project-specific deployment workflows.
+- `scripts/start-docker.sh` and `scripts/start-podman.sh` to start the compose stack with either engine.
+- `scripts/deploy.sh` and `scripts/build-and-export.sh` for project-specific deployment workflows.
 
 See `docs/architecture/runtime-deployment.md` for the detailed runtime and deployment notes.
 
@@ -133,6 +143,7 @@ See `docs/architecture/runtime-deployment.md` for the detailed runtime and deplo
 
 - [System Overview](docs/architecture/system-overview.md)
 - [Core Deep Dive](docs/architecture/core-deep-dive.md)
+- [Core Membership Hierarchy](docs/architecture/core-membership-hierarchy.md)
 - [Runtime and Deployment](docs/architecture/runtime-deployment.md)
 - [Plugin Authoring Guide](docs/architecture/plugin-authoring-guide.md)
 - [Plugin Boundary and Compliance](docs/architecture/plugin-boundary-and-compliance.md)

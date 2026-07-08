@@ -2,8 +2,8 @@
 
 Audience: Entwickler, Architekten
 Scope: Alle Core-Services, Feature-Services, Plugin-Facades und das Berechtigungssystem
-Last-Validated: 2026-06-18
-Source-Commit: d7ff893
+Last-Validated: 2026-07-09
+Source-Commit: working-tree docs refresh
 Related-Diagrams: diagrams/img/cmp-core-services.png, diagrams/img/seq-request-flow.png
 
 ## Purpose
@@ -42,6 +42,9 @@ Sie implementieren ein Interface und werden per DI injiziert.
 | `GetInactiveAsync()` | Liefert inaktive Mitglieder | Keine |
 | `GetByIdAsync(id)` | Einzelnes Mitglied per ID | Keine |
 | `BuildListSegments(members)` | Segmentiert Liste in aktiv/inaktiv/spezial | Keine (pure) |
+| `BuildHierarchy(members)` | Erzeugt eine flache Parent/Submember-Zeilenstruktur fuer die Mitgliederuebersicht | Keine (pure) |
+| `SearchForReferenceAsync(query, limit)` | Liefert Suchtreffer fuer MemberReference-Metadatenfelder | DB-Read |
+| `GetReferenceLabelsAsync(ids)` | Loest Member-Ids in lesbare Labels auf | DB-Read |
 | `CreateAsync(member, actor)` | Erstellt neues Mitglied | DB-Insert + AuditLog |
 | `UpdateAsync(member, actor)` | Aktualisiert Mitglied | DB-Update + AuditLog |
 | `VerifyAsync(id, actor)` | Setzt `IsVerified = true` | DB-Update + AuditLog |
@@ -50,6 +53,8 @@ Sie implementieren ein Interface und werden per DI injiziert.
 | `ImportCsvAsync(stream, actor)` | CSV-Import (Upsert) | DB-Insert/Update + AuditLog |
 
 **Controller-Touchpoints:** `Controllers/Member/Member_Controller.cs`, `Controllers/Member/Member_API.cs`
+
+Die Mitgliederuebersicht nutzt `BuildHierarchy`, um Container-Mitglieder direkt mit ihren Untermitgliedern zu rendern. Die Parent/Child-Beziehung entsteht aus `MemberReference`-Metadatenwerten und `MembershipType.AllowsSubMembers`; siehe [Core Membership Hierarchy](core-membership-hierarchy.md).
 
 ---
 

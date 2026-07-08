@@ -2,8 +2,8 @@
 
 Audience: Entwickler, DBA, DevOps
 Scope: Datenbankschema, Entitäten, Constraints, Legacy-Kompatibilitätsstrategie (ClubManager → ClubGear)
-Last-Validated: 2026-05-31
-Source-Commit: d7ff893
+Last-Validated: 2026-07-09
+Source-Commit: working-tree docs refresh
 Related-Diagrams: diagrams/img/cmp-data-model-relations.png
 
 ## Purpose
@@ -34,6 +34,8 @@ SeedAsync()
 	└─ EnsureSqliteSchemaCompatibilityAsync()  ← Patcht bestehende Schemas
 			 ├─ EnsureMembersColumnsAsync()        ← Alle ClubGear-Spalten ergänzen
 			 ├─ EnsureMemberAddressesTableAsync()  ← Tabelle erzeugen falls fehlt
+			 ├─ EnsureSystemConfigTableAsync()     ← Systemkonfiguration erzeugen falls fehlt
+			 ├─ Data/Migrations/*                  ← Plugin-, MembershipType- und Hierarchie-Patches
 			 └─ EnsureLegacyDataMappingAsync()     ← Altdaten migrieren
 ```
 
@@ -112,6 +114,50 @@ SeedAsync()
 | `IsDefault` | INTEGER | ✓ | DEFAULT 0 | Standardadresse |
 
 **Beziehung:** `Member` 1 → N `MemberAddresses` (EF Cascade Delete konfiguriert)
+
+---
+
+### MembershipTypes
+
+**EF-Mapping:** `ApplicationDbContext.MembershipTypes`
+**Entity:** `Models/MembershipType.cs`
+
+| Spalte | Typ | Pflicht | Constraint | Beschreibung |
+|---|---|---|---|---|
+| `Id` | INTEGER | ✓ | PK, Auto-Increment | Primärschlüssel |
+| `Key` | TEXT(100) | ✓ | UNIQUE | Stabiler technischer Schlüssel, z.B. `Firma` |
+| `Name` | TEXT(200) | ✓ | | Anzeigename |
+| `Description` | TEXT(1000) | | | Beschreibung für Admins |
+| `DefaultDiscountPercent` | INTEGER | | | Standardrabatt für neue Mitglieder dieses Typs |
+| `IsSystemDefined` | INTEGER | ✓ | DEFAULT 0 | Systemtyp, der nicht frei gelöscht werden soll |
+| `SortOrder` | INTEGER | ✓ | DEFAULT 0 | Anzeige-/Auswahlreihenfolge |
+| `IsActive` | INTEGER | ✓ | DEFAULT 1 | In neuen Mitgliedsformularen auswählbar |
+| `AllowsSubMembers` | INTEGER | ✓ | DEFAULT 0 | Darf als Parent/Container für Untermitglieder dienen |
+| `SubMemberLabel` | TEXT(100) | | | Label für eingerückte Untermitglieder, z.B. `Mitarbeiter` |
+| `CreatedAtUtc` | TEXT | ✓ | | Erstellzeitpunkt |
+| `UpdatedAtUtc` | TEXT | ✓ | | Änderungszeitpunkt |
+
+`AllowsSubMembers` und `SubMemberLabel` werden über `Data/Migrations/202607080101_AddSubMemberHierarchy.cs` idempotent ergänzt. Die Migration setzt Initialwerte für die Systemtypen `Familie`, `Firma` und `Verein`, ohne spätere Admin-Änderungen zu überschreiben.
+
+### MembershipTypeFields
+
+**EF-Mapping:** `ApplicationDbContext.MembershipTypeFields`
+**Entity:** `Models/MembershipTypeField.cs`
+
+MembershipTypeFields definieren typabhängige Zusatzfelder für Mitglieder. Für Hierarchien ist besonders `MemberReference` relevant: Eine solche Metadatenreferenz kann ein Mitglied an einen Parent binden, wenn der referenzierte Parent-Typ `AllowsSubMembers = true` besitzt.
+
+Der eindeutige Index `(MembershipTypeId, Key)` verhindert doppelte Feldschlüssel innerhalb einer Mitgliedsart.
+
+### MemberMetadataValues
+
+**EF-Mapping:** `ApplicationDbContext.MemberMetadataValues`
+**Entity:** `Models/MemberMetadataValue.cs`
+
+MemberMetadataValues speichern die konkreten Werte zu den Feldern einer Mitgliedsart. `MemberReference`-Werte werden als Member-Id kodiert, aber in Details- und Edit-UI über `IMemberFeatureService.GetReferenceLabelsAsync` wieder als lesbare Mitgliederlabels dargestellt.
+
+Die Hierarchie im Mitgliederindex wird zur Laufzeit aus diesen `MemberReference`-Werten abgeleitet; es gibt bewusst keine separate Parent/Child-Tabelle.
+
+Mehr Details: [Core Membership Hierarchy](core-membership-hierarchy.md).
 
 ---
 

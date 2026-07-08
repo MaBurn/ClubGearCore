@@ -2,8 +2,8 @@
 
 Audience: DevOps, Entwickler, Systemadmins
 Scope: Laufzeitverhalten, Hosting-Konfiguration, Startup-Sequenz, Deployment-Topologie
-Last-Validated: 2026-06-07
-Source-Commit: ae195e7
+Last-Validated: 2026-07-09
+Source-Commit: working-tree docs refresh
 Related-Diagrams: diagrams/img/dep-runtime-deployment.png, diagrams/img/seq-startup-migration-compatibility.png
 
 ## Purpose
@@ -21,7 +21,7 @@ von der lokalen Entwicklungsumgebung bis zum produktiven Container-Deployment.
 
 | Umgebung | Startmethode | Datenbankdatei | Port |
 |---|---|---|---|
-| **Development** | `dotnet run` | `clubmanagerv0_2.dev.db` | 5009 (HTTP) |
+| **Development** | `dotnet run --launch-profile http` | `clubmanagerv0_2.dev.db` | 5007 (HTTP) |
 | **Docker/CI** | `docker compose up` | per Volume-Mount (konfigurierbar) | 80 |
 | **Produktion** | `dotnet run` / Container hinter Reverse-Proxy | persistenter Volume | 443 (via nginx/Caddy) |
 
@@ -56,7 +56,9 @@ find bin/Debug/net8.0 -type f \( -name 'ClubGear' -o -name '*.dylib' \) -print0 
    ├── EnsureCreatedAsync()        ← Erstellt Schema falls neu
    ├── EnsureSqliteSchemaCompatibilityAsync()
    │   ├── Fehlende Spalten ergänzen (ALTER TABLE)
-   │   ├── MemberAddresses-Tabelle sicherstellen
+   │   ├── MemberAddresses- und SystemConfig-Tabellen sicherstellen
+   │   ├── Plugin-Status, Plugin-Abhaengigkeiten und MembershipType-Schema patchen
+   │   ├── Sub-Member-Hierarchy-Spalten patchen und Default-Container backfillen
    │   └── Legacy-Datenmapping (IsNotVerifyed → IsVerified, etc.)
    └── SeedTasks ausführen (IRoleSeeder, IPermissionSeeder, …)
 5. app.Run()

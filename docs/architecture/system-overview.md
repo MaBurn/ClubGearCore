@@ -2,8 +2,8 @@
 
 Audience: Entwickler, Architekten, technisch versierte Vereinsadmins
 Scope: Gesamtsystem ClubGear — Kontextgrenzen, Akteure, externe Systeme
-Last-Validated: 2026-06-07
-Source-Commit: ae195e7
+Last-Validated: 2026-07-09
+Source-Commit: working-tree docs refresh
 Related-Diagrams: diagrams/img/ctx-system-overview.png
 
 ## Purpose
@@ -20,7 +20,7 @@ und wie ClubGear intern strukturiert ist (MVC-Core + Plugin-Erweiterbarkeit).
 
 | Akteur | Rolle |
 |---|---|
-| **Admin / Verwalter** | Verwaltet Mitglieder, Rollen, Berechtigungen und Einstellungen über die Web-Oberfläche |
+| **Admin / Verwalter** | Verwaltet Mitglieder, Mitgliedsarten, Metadatenfelder, Rollen, Berechtigungen und Einstellungen über die Web-Oberfläche |
 | **Mitglied** | Nutzt das Selfservice-Portal (`/SelfService`) zur Pflege eigener Profildaten und plugin-getriebener Erweiterungen |
 | **Plugin-Entwickler** | Erstellt Erweiterungen, die über `IPluginModule` ins System registriert werden |
 
@@ -50,6 +50,8 @@ Der Plugin-Mechanismus erlaubt externe Module, die beim Start über
 `IPluginInstallerService` installiert, über den Lifecycle aktiviert und beim Start in die Runtime geladen werden.
 Plugins **dürfen nicht** direkt auf `ApplicationDbContext` zugreifen — sie erhalten
 dedizierte Facades und Contribution-Slots fuer Member-Ansichten, Selfservice und Admin/Functions.
+
+Der Core selbst verwaltet typisierte Mitglieder. Mitgliedsarten koennen eigene Metadatenfelder definieren und als Container fuer Untermitglieder markiert werden. Die Mitgliederuebersicht leitet daraus eine Parent/Submember-Darstellung ab, ohne Plugin-spezifische Core-Logik einzubauen.
 
 ## Berechtigungskonzept
 
