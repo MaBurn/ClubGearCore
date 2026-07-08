@@ -1,0 +1,82 @@
+﻿/* Please see documentation at https://learn.microsoft.com/aspnet/core/client-side/bundling-and-minification
+for details on configuring this project to bundle and minify static web assets. */
+
+a.navbar-brand {
+  white-space: normal;
+  text-align: center;
+  word-break: break-all;
+}
+
+a {
+  color: #0077cc;
+}
+
+.btn-primary {
+  color: #fff;
+  background-color: #1b6ec2;
+  border-color: #1861ac;
+}
+
+.nav-pills .nav-link.active, .nav-pills .show > .nav-link {
+  color: #fff;
+  background-color: #1b6ec2;
+  border-color: #1861ac;
+}
+
+.border-top {
+  border-top: 1px solid #e5e5e5;
+}
+.border-bottom {
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.box-shadow {
+  box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .05);
+}
+
+button.accept-policy {
+  font-size: 1rem;
+  line-height: inherit;
+}
+
+.footer {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  white-space: nowrap;
+  line-height: 60px;
+}
+
+.cg-main-shell {
+  margin-top: var(--cg-page-top-spacing, 1.5rem);
+  padding-bottom: var(--cg-page-bottom-spacing, 2rem);
+}
+
+.cg-main-shell ::deep .cg-page {
+  display: grid;
+  gap: var(--cg-page-gap, 1rem);
+}
+
+.cg-main-shell ::deep .cg-page-section {
+  margin: 0;
+}
+
+.cg-main-shell ::deep .cg-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cg-action-gap, 0.75rem);
+}
+
+.cg-main-shell ::deep .cg-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cg-action-gap, 0.75rem);
+}
+
+.cg-main-shell ::deep .cg-panel {
+  border: 1px solid var(--cg-panel-border, #e6e8eb);
+  border-radius: 0.5rem;
+}

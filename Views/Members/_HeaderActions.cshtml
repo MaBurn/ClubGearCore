@@ -1,0 +1,146 @@
+@using System.Text.Json
+@using ClubGear.Plugin.Contracts
+@model object
+@using ClubGear.Services.Abstractions
+
+@{
+    var pluginSlots = ViewData["MemberPluginSlots"] as MemberPluginSlotSnapshot ?? MemberPluginSlotSnapshot.Empty;
+    var headerMode = ViewData["MemberHeaderMode"] as string ?? "details";
+    var hasSchemaActions = pluginSlots.Actions.Any(action => action.Action.ArgumentSchema is { Count: > 0 });
+    var pluginActionsVisible = ViewData["PluginActionsVisible"] is bool pav ? pav : true;
+
+    static string ButtonCss(string style)
+    {
+        if (string.IsNullOrWhiteSpace(style))
+        {
+            return "btn-outline-secondary";
+        }
+
+        return style.StartsWith("btn-", StringComparison.OrdinalIgnoreCase)
+            ? style
+            : $"btn-{style}";
+    }
+
+    static object[] BuildActionSchema(IReadOnlyList<PluginFieldSchema>? schema)
+    {
+        if (schema is null || schema.Count == 0)
+        {
+            return Array.Empty<object>();
+        }
+
+        return schema
+            .OrderBy(field => field.Order)
+            .ThenBy(field => field.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(field => new
+            {
+                key = field.Key,
+                label = field.Label,
+                inputType = field.InputType.ToString(),
+                required = field.Required,
+                order = field.Order,
+                helpText = field.HelpText,
+                placeholder = field.Placeholder,
+                constraints = field.Constraints is null
+                    ? null
+                    : new
+                    {
+                        min = field.Constraints.Min,
+                        max = field.Constraints.Max,
+                        minLength = field.Constraints.MinLength,
+                        maxLength = field.Constraints.MaxLength,
+                        regexPattern = field.Constraints.RegexPattern,
+                        dateMin = field.Constraints.DateMin,
+                        dateMax = field.Constraints.DateMax,
+                        customMessage = field.Constraints.CustomMessage
+                    },
+                options = field.Options?.Select(option => new
+                {
+                    value = option.Value,
+                    label = option.Label
+                }).ToArray()
+            })
+            .ToArray();
+    }
+}
+
+@if (Model is IEnumerable<ClubGear.Models.Member>)
+{
+    <div class="members-ops-card cg-panel shadow-sm">
+        <div class="members-ops-card__copy">
+            <p class="members-ops-card__eyebrow">Schnellaktionen</p>
+            <h2 class="members-ops-card__title">Operative Werkzeuge</h2>
+            <p class="members-ops-card__subtitle">
+                Import, Pflege und Bereinigung sind direkt im Kopfbereich gebuendelt, damit die Mitgliederseite eher wie ein Arbeitsbereich als wie eine einfache Listenansicht funktioniert.
+            </p>
+        </div>
+
+        <div class="members-ops-card__actions">
+            <a asp-action="Create" class="btn btn-primary btn-lg">Neues Mitglied</a>
+            <a asp-action="Import" class="btn btn-outline-primary btn-lg">CSV-Import</a>
+            <a asp-action="BulkDeleteTerminatedMembers" class="btn btn-outline-danger btn-lg">Inaktive loeschen</a>
+        </div>
+    </div>
+}
+else if (Model is ClubGear.Models.Member member)
+{
+    if (string.Equals(headerMode, "edit", StringComparison.OrdinalIgnoreCase))
+    {
+        if (pluginActionsVisible)
+        {
+            <div class="d-flex flex-wrap justify-content-end align-items-start gap-2">
+                @foreach (var action in pluginSlots.Actions)
+                {
+                    <button
+                        type="button"
+                        class="btn @ButtonCss(action.Action.Style)"
+                        data-plugin-member-action
+                        data-plugin-member-id="@member.Id"
+                        data-plugin-module-id="@action.ModuleId"
+                        data-plugin-action-key="@action.Action.Key"
+                        data-plugin-action-confirm="@action.Action.ConfirmMessage"
+                        data-plugin-action-schema='@JsonSerializer.Serialize(BuildActionSchema(action.Action.ArgumentSchema))'
+                        data-plugin-action-label="@action.Action.Label"
+                        title="@action.PluginDisplayName">
+                        @action.Action.Label
+                    </button>
+                }
+            </div>
+            @if (hasSchemaActions)
+            {
+                <partial name="_PluginActionModal" model="pluginSlots" />
+            }
+        }
+    }
+    else
+    {
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+            <div>
+                <h1 class="h4 mb-1">@ViewData["Title"]</h1>
+                <p class="text-muted mb-0">@member.FullName (@member.MemberNumber)</p>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2 justify-content-end">
+                @foreach (var action in pluginSlots.Actions)
+                {
+                    <button
+                        type="button"
+                        class="btn @ButtonCss(action.Action.Style)"
+                        data-plugin-member-action
+                        data-plugin-member-id="@member.Id"
+                        data-plugin-module-id="@action.ModuleId"
+                        data-plugin-action-key="@action.Action.Key"
+                        data-plugin-action-confirm="@action.Action.ConfirmMessage"
+                        data-plugin-action-schema='@JsonSerializer.Serialize(BuildActionSchema(action.Action.ArgumentSchema))'
+                        data-plugin-action-label="@action.Action.Label"
+                        title="@action.PluginDisplayName">
+                        @action.Action.Label
+                    </button>
+                }
+
+                <a asp-action="Edit" asp-route-id="@member.Id" class="btn btn-primary">Bearbeiten</a>
+
+                <a asp-action="Index" class="btn btn-outline-secondary">Zurueck</a>
+            </div>
+        </div>
+    }
+}

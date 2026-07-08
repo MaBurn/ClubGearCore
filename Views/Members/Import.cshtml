@@ -1,0 +1,62 @@
+@{
+    ViewData["Title"] = "Mitglieder-Import";
+    var importResult = ViewData["ImportResult"] as ClubGear.Services.Abstractions.MembersImportResult;
+}
+
+<div class="container mt-4">
+    <h1 class="h3 mb-3">CSV-Import fuer Mitglieder</h1>
+
+    <div class="mb-3">
+        <partial name="_FeedbackArea" />
+    </div>
+
+    <div class="alert alert-info">
+        Erwartete Spaltenreihenfolge: <strong>MemberNumber;FirstName;LastName;Email;PhoneNumber;IsActive;JoinedAt</strong>.<br />
+        Trenner: <strong>;</strong> oder <strong>,</strong>. Erste Zeile darf Header enthalten.
+    </div>
+
+    <form asp-action="Import" method="post" enctype="multipart/form-data" class="card card-body shadow-sm">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+        <div class="mb-3">
+            <label for="csvFile" class="form-label">CSV-Datei</label>
+            <input type="file" id="csvFile" name="csvFile" class="form-control" accept=".csv,text/csv" required />
+        </div>
+
+        <div>
+            <button type="submit" class="btn btn-primary">Import starten</button>
+            <a asp-action="Index" class="btn btn-outline-secondary">Zurueck</a>
+        </div>
+    </form>
+
+    @if (importResult is not null)
+    {
+        <div class="card mt-4 shadow-sm">
+            <div class="card-header">Import-Ergebnis</div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4"><div class="alert alert-success mb-0">Erstellt: @importResult.Created</div></div>
+                    <div class="col-md-4"><div class="alert alert-primary mb-0">Aktualisiert: @importResult.Updated</div></div>
+                    <div class="col-md-4"><div class="alert alert-warning mb-0">Uebersprungen: @importResult.Skipped</div></div>
+                </div>
+
+                @if (importResult.Errors.Count > 0)
+                {
+                    <hr />
+                    <h2 class="h6">Fehlerhinweise</h2>
+                    <ul class="mb-0">
+                        @foreach (var error in importResult.Errors)
+                        {
+                            <li>@error</li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

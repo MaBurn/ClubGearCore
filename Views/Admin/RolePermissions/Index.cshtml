@@ -1,0 +1,97 @@
+@model ClubGear.Models.Admin.RolePermissionsViewModel
+@using ClubGear.Models.Feedback
+@{
+    ViewData["Title"] = "Berechtigungen";
+}
+
+<div class="cg-page cg-page--role-permissions" data-page="role-permissions">
+    <section class="cg-page-section cg-page-header d-flex flex-wrap justify-content-between align-items-start gap-3">
+        <div>
+            <h1 class="h3 mb-1">Berechtigungen</h1>
+            <p class="text-muted mb-0">Rollenzuweisungen fuer alle Berechtigungen verwalten.</p>
+        </div>
+    </section>
+
+    @if (Model.Feedback is not null)
+    {
+        <section class="cg-page-section">
+            <div class="alert @Model.Feedback.AlertCssClass mb-0" role="status">
+                @Model.Feedback.Message
+            </div>
+        </section>
+    }
+
+    <section class="cg-page-section">
+        @if (!Model.Roles.Any())
+        {
+            <div class="alert alert-info">Keine Rollen vorhanden.</div>
+        }
+        else if (!Model.Permissions.Any())
+        {
+            <div class="alert alert-info">Keine Berechtigungen vorhanden.</div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">Berechtigung</th>
+                            @foreach (var role in Model.Roles)
+                            {
+                                <th scope="col" class="text-center">@role.RoleName</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var group in Model.Permissions)
+                        {
+                            <tr class="table-secondary">
+                                <td colspan="@(Model.Roles.Count + 1)" class="fw-semibold">@group.Category</td>
+                            </tr>
+                            @foreach (var permission in group.Permissions)
+                            {
+                                <tr>
+                                    <td>
+                                        <span class="fw-medium">@permission.Key</span>
+                                        @if (!string.IsNullOrWhiteSpace(permission.Description))
+                                        {
+                                            <br /><small class="text-muted">@permission.Description</small>
+                                        }
+                                    </td>
+                                    @foreach (var role in Model.Roles)
+                                    {
+                                        <td class="text-center">
+                                            @if (role.GrantedKeys.Contains(permission.Key))
+                                            {
+                                                <form action="/Admin/RolePermissions/Revoke" method="post">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="RoleName" value="@role.RoleName" />
+                                                    <input type="hidden" name="PermissionKey" value="@permission.Key" />
+                                                    <button type="submit" class="btn btn-sm btn-success" title="Berechtigung entziehen">
+                                                        <span aria-hidden="true">&#10003;</span>
+                                                    </button>
+                                                </form>
+                                            }
+                                            else
+                                            {
+                                                <form action="/Admin/RolePermissions/Grant" method="post">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="RoleName" value="@role.RoleName" />
+                                                    <input type="hidden" name="PermissionKey" value="@permission.Key" />
+                                                    <button type="submit" class="btn btn-sm btn-outline-secondary" title="Berechtigung zuweisen">
+                                                        <span aria-hidden="true">&#8722;</span>
+                                                    </button>
+                                                </form>
+                                            }
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>

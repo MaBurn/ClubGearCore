@@ -1,0 +1,440 @@
+@model ClubGear.Models.Admin.AdminFunctionsViewModel
+@{
+    ViewData["Title"] = "Administrative Funktionen";
+    var activeTab = (Context.Request.Query["tab"].FirstOrDefault() ?? "config").ToLowerInvariant();
+    var groupedCards = Model.ConfigCards
+        .GroupBy(card => card.SectionGroupTitle)
+        .ToList();
+}
+
+<div class="cg-page cg-page--admin-functions" data-page="admin-functions">
+    <section class="cg-page-section cg-page-header d-flex flex-wrap justify-content-between align-items-start gap-3">
+        <div>
+            <h1 class="h3 mb-1">Administrative Funktionen</h1>
+            <p class="text-muted mb-0">Konfiguration, Wartung und Systemfunktionen zentral an einem Ort.</p>
+        </div>
+    </section>
+
+    @if (Model.Feedback is not null)
+    {
+        <section class="cg-page-section">
+            <div class="alert @Model.Feedback.AlertCssClass mb-0" role="status">
+                @Model.Feedback.Message
+            </div>
+        </section>
+    }
+
+    <section class="cg-page-section">
+        <ul class="nav nav-tabs" id="adminTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link @(activeTab == "database" ? "active" : string.Empty)" id="database-tab" data-bs-toggle="tab" data-bs-target="#database" type="button" role="tab">Datenbank</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link @(activeTab == "maintenance" ? "active" : string.Empty)" id="maintenance-tab" data-bs-toggle="tab" data-bs-target="#maintenance" type="button" role="tab">Wartung</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link @(activeTab == "config" ? "active" : string.Empty)" id="config-tab" data-bs-toggle="tab" data-bs-target="#config" type="button" role="tab">Konfiguration</button>
+            </li>
+            @if (Model.CanManageMembershipTypes)
+            {
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link @(activeTab == "membershiptypes" ? "active" : string.Empty)" id="membershiptypes-tab" data-bs-toggle="tab" data-bs-target="#membershiptypes" type="button" role="tab">Mitgliedsarten</button>
+                </li>
+            }
+            <li class="nav-item" role="presentation">
+                <button class="nav-link @(activeTab == "templates" ? "active" : string.Empty)" id="templates-tab" data-bs-toggle="tab" data-bs-target="#templates" type="button" role="tab">Templates</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link @(activeTab == "reports" ? "active" : string.Empty)" id="reports-tab" data-bs-toggle="tab" data-bs-target="#reports" type="button" role="tab">Berichte</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link @(activeTab == "logging" ? "active" : string.Empty)" id="logging-tab" data-bs-toggle="tab" data-bs-target="#logging" type="button" role="tab">Protokollierung</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link @(activeTab == "plugins" ? "active" : string.Empty)" id="plugins-tab" data-bs-toggle="tab" data-bs-target="#plugins" type="button" role="tab">Plugins</button>
+            </li>
+        </ul>
+
+        <div class="tab-content border border-top-0 p-3 p-lg-4" id="adminTabsContent">
+            <div class="tab-pane fade @(activeTab == "database" ? "show active" : string.Empty)" id="database" role="tabpanel">
+                <div class="card border-primary">
+                    <div class="card-body">
+                        <h2 class="h5 mb-2">Datenbank</h2>
+                        <p class="text-muted mb-0">Bereich vorbereitet. Die operativen Datenbankaktionen werden als naechster Schritt hier eingebunden.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade @(activeTab == "maintenance" ? "show active" : string.Empty)" id="maintenance" role="tabpanel">
+                <div class="row g-3">
+                    <div class="col-12 col-lg-6">
+                        <div class="card border-warning h-100">
+                            <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                                <h2 class="h6 mb-0">Wartungsmodus</h2>
+                                <span class="badge @(Model.MaintenanceModeEnabled ? "bg-danger" : "bg-success")">
+                                    @(Model.MaintenanceModeEnabled ? "Aktiv" : "Inaktiv")
+                                </span>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted">
+                                    Sperrt die Anwendung fuer regulaere Nutzer und zeigt stattdessen eine Wartungsseite an.
+                                    Administratoren behalten weiterhin Zugriff.
+                                </p>
+                                <form asp-action="SetMaintenanceMode" method="post" class="d-flex flex-wrap gap-2 align-items-center">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn @(Model.MaintenanceModeEnabled ? "btn-outline-success" : "btn-warning")">
+                                        @(Model.MaintenanceModeEnabled ? "Wartungsmodus deaktivieren" : "Wartungsmodus aktivieren")
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-6">
+                        <div class="card border-secondary h-100">
+                            <div class="card-body">
+                                <h2 class="h6 mb-2">Hinweis</h2>
+                                <p class="text-muted mb-0">Weitere Wartungsaktionen wie Cache-Reset oder Diagnose koennen hier spaeter ergaenzt werden.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade @(activeTab == "config" ? "show active" : string.Empty)" id="config" role="tabpanel">
+                @foreach (var group in groupedCards)
+                {
+                    <div class="row mt-4">
+                        <div class="col-12 mb-3">
+                            <h6 class="text-uppercase text-muted">@group.Key</h6>
+                        </div>
+                    </div>
+                    <div class="row">
+                        @foreach (var card in group)
+                        {
+                            <div class="col-md-4 col-lg-3 mb-4">
+                                <div class="card border-@card.ThemeCssClass h-100">
+                                    <div class="card-header bg-@card.ThemeCssClass text-white">
+                                        <h6 class="mb-0 text-white">@card.Title</h6>
+                                    </div>
+                                    <div class="card-body d-flex flex-column">
+                                        <p class="text-muted small flex-fill">@card.Description</p>
+                                        <button class="btn btn-@card.ThemeCssClass btn-sm align-self-start" data-bs-toggle="modal" data-bs-target="#@card.ModalId">Konfigurieren</button>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <div class="row mt-4">
+                    <div class="col-12 mb-3">
+                        <h6 class="text-uppercase text-muted">Protokollierung</h6>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card border-secondary h-100">
+                            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                                <h2 class="h6 mb-0">Mail- und Benachrichtigungsprotokolle</h2>
+                                <span class="badge bg-light text-dark">@Model.NotificationRecords.Count Eintraege</span>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted small mb-3">Letzte Versand- und Fehlerereignisse direkt sichtbar im Administrationsbereich.</p>
+                                <div class="table-responsive mb-3">
+                                    <table class="table table-sm align-middle mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Zeitpunkt</th>
+                                                <th>Channel</th>
+                                                <th>Empfaenger</th>
+                                                <th>Betreff</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var record in Model.NotificationRecords.Take(5))
+                                            {
+                                                <tr>
+                                                    <td>@record.CreatedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
+                                                    <td>@record.Channel</td>
+                                                    <td>@record.Recipient</td>
+                                                    <td>@record.Subject</td>
+                                                    <td>
+                                                        <span class="badge @(record.Status == "Sent" ? "bg-success" : "bg-danger")">@record.Status</span>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="d-flex justify-content-end">
+                                    <a class="btn btn-outline-secondary" href="@Url.Action("Functions", "Admin", new { tab = "logging" })#logging">Alle Protokolle anzeigen</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card border-secondary">
+                            <div class="card-header bg-secondary text-white">
+                                <h2 class="h6 mb-0">Alle Einstellungen (Experten)</h2>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted small">Rohe Config-Tabelle mit Section, Name, Value und Description.</p>
+                                <div class="table-responsive">
+                                    <table class="table table-sm align-middle">
+                                        <thead>
+                                            <tr>
+                                                <th>Section</th>
+                                                <th>Name</th>
+                                                <th>Value</th>
+                                                <th>Description</th>
+                                                <th class="text-end">Aktion</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var entry in Model.AllEntries)
+                                            {
+                                                <tr>
+                                                    <td colspan="5">
+                                                        <form asp-action="SaveConfigEntry" method="post" class="row g-2">
+                                                            @Html.AntiForgeryToken()
+                                                            <input type="hidden" name="Id" value="@entry.Id" />
+                                                            <div class="col-12 col-md-2">
+                                                                <input class="form-control form-control-sm" name="Section" value="@entry.Section" />
+                                                            </div>
+                                                            <div class="col-12 col-md-2">
+                                                                <input class="form-control form-control-sm" name="Name" value="@entry.Name" />
+                                                            </div>
+                                                            <div class="col-12 col-md-3">
+                                                                <input class="form-control form-control-sm" name="Value" value="@entry.Value" />
+                                                            </div>
+                                                            <div class="col-12 col-md-3">
+                                                                <input class="form-control form-control-sm" name="Description" value="@entry.Description" />
+                                                            </div>
+                                                            <div class="col-12 col-md-2 d-flex gap-2 justify-content-md-end">
+                                                                <button type="submit" class="btn btn-sm btn-outline-primary">Speichern</button>
+                                                                <button type="submit"
+                                                                        class="btn btn-sm btn-outline-danger"
+                                                                        formaction="@Url.Action("DeleteConfigEntry", "Admin")"
+                                                                        formmethod="post"
+                                                                        name="id"
+                                                                        value="@entry.Id"
+                                                                        onclick="return confirm('Eintrag wirklich loeschen?');">
+                                                                    Loeschen
+                                                                </button>
+                                                            </div>
+                                                        </form>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @if (Model.CanManageMembershipTypes)
+            {
+                <div class="tab-pane fade @(activeTab == "membershiptypes" ? "show active" : string.Empty)" id="membershiptypes" role="tabpanel">
+                    <div class="card border-primary">
+                        <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+                            <div>
+                                <h2 class="h5 mb-1">Mitgliedsarten &amp; Metadatendefinitionen</h2>
+                                <p class="text-muted mb-0">Mitgliedsarten (z.B. Verein, Firma, Familie) anlegen, deren Rabatt festlegen und pro Typ eigene Zusatzfelder definieren.</p>
+                            </div>
+                            <a class="btn btn-primary" asp-controller="MembershipTypes" asp-action="Index">Mitgliedsarten verwalten</a>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <div class="tab-pane fade @(activeTab == "templates" ? "show active" : string.Empty)" id="templates" role="tabpanel">
+                <div class="card border-success">
+                    <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+                        <div>
+                            <h2 class="h5 mb-1">Template-Management</h2>
+                            <p class="text-muted mb-0">Bereich vorbereitet, damit du die Legacy-Template-Funktionen geordnet anbinden kannst.</p>
+                        </div>
+                        <a class="btn btn-outline-success" href="#">Templates oeffnen (in Arbeit)</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade @(activeTab == "reports" ? "show active" : string.Empty)" id="reports" role="tabpanel">
+                <div class="card border-info">
+                    <div class="card-body">
+                        <h2 class="h5 mb-2">Berichte</h2>
+                        <p class="text-muted mb-0">Bereich vorbereitet. Report-Endpunkte koennen hier als Kacheln oder Export-Aktionen folgen.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade @(activeTab == "logging" ? "show active" : string.Empty)" id="logging" role="tabpanel">
+                <div class="card border-secondary">
+                    <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                        <h2 class="h6 mb-0">Mail- und Benachrichtigungsprotokolle</h2>
+                        <span class="badge bg-light text-dark">@Model.NotificationRecords.Count Eintraege</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Zeitpunkt</th>
+                                        <th>Channel</th>
+                                        <th>Empfaenger</th>
+                                        <th>Betreff</th>
+                                        <th>Status</th>
+                                        <th>Fehler</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var record in Model.NotificationRecords)
+                                    {
+                                        <tr>
+                                            <td>@record.CreatedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
+                                            <td>@record.Channel</td>
+                                            <td>@record.Recipient</td>
+                                            <td>@record.Subject</td>
+                                            <td>
+                                                <span class="badge @(record.Status == "Sent" ? "bg-success" : "bg-danger")">
+                                                    @record.Status
+                                                </span>
+                                            </td>
+                                            <td class="text-muted">@record.Error</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade @(activeTab == "plugins" ? "show active" : string.Empty)" id="plugins" role="tabpanel">
+                <div class="row g-3">
+                    <div class="col-12 col-xl-8">
+                        <div class="card border-info h-100">
+                            <div class="card-header bg-info text-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                <div>
+                                    <h2 class="h5 mb-1 text-white">Plugin-Panels</h2>
+                                    <p class="mb-0 small text-white-50">Generische Plugin-Oberflaechen fuer Admin-Funktionen direkt hier ausfuehren.</p>
+                                </div>
+                            </div>
+                            <div class="card-body"
+                                 data-plugin-panel-host
+                                 data-plugin-panels-url="/api/admin/plugin-commands/panels"
+                                 data-plugin-command-url="/api/admin/plugin-commands">
+                                <div class="d-flex align-items-center gap-2 text-muted" data-plugin-panel-loading>
+                                    <div class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></div>
+                                    <span>Plugin-Panels werden geladen...</span>
+                                </div>
+                                <div class="alert alert-danger d-none mt-3 mb-0" role="alert" data-plugin-panel-error></div>
+                                <div class="alert alert-success d-none mt-3 mb-0" role="status" data-plugin-panel-success></div>
+                                <div class="d-grid gap-3 mt-3" data-plugin-panel-list></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-xl-4">
+                        <div class="card border-secondary h-100">
+                            <div class="card-body d-flex flex-column gap-3 justify-content-between">
+                                <div>
+                                    <h2 class="h5 mb-1">Plugin-Verwaltung</h2>
+                                    <p class="text-muted mb-0">Installation, Aktivierung und Diagnose bleiben in der dedizierten Plugin-Administration.</p>
+                                </div>
+                                <div>
+                                    <a class="btn btn-info text-white" asp-controller="PluginAdmin" asp-action="Index">Zur Plugin-Administration</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+@Html.AntiForgeryToken()
+
+<div class="modal fade" id="admin-plugin-command-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <form data-plugin-command-form>
+                <div class="modal-header">
+                    <div>
+                        <h2 class="modal-title h5 mb-1" data-plugin-command-title>Plugin-Befehl</h2>
+                        <p class="text-muted small mb-0" data-plugin-command-meta></p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schliessen"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger d-none" role="alert" data-plugin-command-summary></div>
+                    <div class="row g-3" data-plugin-command-fields></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary" data-plugin-command-submit>Ausfuehren</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@foreach (var card in Model.ConfigCards)
+{
+    <div class="modal fade" id="@card.ModalId" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-@card.ThemeCssClass text-white">
+                    <h5 class="modal-title text-white">@card.Title konfigurieren</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Schliessen"></button>
+                </div>
+                <form class="cfg-form" data-section="@card.ModalId">
+                    <div class="modal-body">
+                        <div class="cfg-loading text-center py-4" data-section="@card.ModalId">
+                            <div class="spinner-border" role="status"></div>
+                            <p class="mt-2 text-muted">Laden...</p>
+                        </div>
+                        <div class="cfg-fields" data-section="@card.ModalId" style="display:none;">
+                            @foreach (var field in card.Fields)
+                            {
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">@field.Label</label>
+                                    @if (field.InputType == "textarea")
+                                    {
+                                        <textarea class="form-control"
+                                                  rows="@field.Rows"
+                                                  data-key="@field.Key"
+                                                  data-sect="@field.Section"></textarea>
+                                    }
+                                    else
+                                    {
+                                        <input type="@field.InputType"
+                                               class="form-control"
+                                               data-key="@field.Key"
+                                               data-sect="@field.Section" />
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <span class="cfg-status me-auto small"></span>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="submit" class="btn btn-@card.ThemeCssClass">Speichern</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script src="~/js/admin-functions.js" asp-append-version="true"></script>
+}

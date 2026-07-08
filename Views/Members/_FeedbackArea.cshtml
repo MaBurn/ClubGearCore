@@ -1,0 +1,12 @@
+@using ClubGear.Models.Feedback
+@{
+    var feedback = ViewData[ActionFeedbackViewModel.ViewDataKey] as ActionFeedbackViewModel
+        ?? ActionFeedbackViewModel.FromTempData(TempData);
+}
+
+@if (feedback is not null)
+{
+    <div class="alert @feedback.AlertCssClass mb-0" role="status" data-feedback-kind="@feedback.Kind">
+        @feedback.Message
+    </div>
+}

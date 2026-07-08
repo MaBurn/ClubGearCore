@@ -1,0 +1,14 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.cs]
+dotnet_analyzer_diagnostic.severity = none
+dotnet_diagnostic.CA2000.severity = error
+dotnet_diagnostic.CA2012.severity = error
+dotnet_diagnostic.CA2208.severity = error
+dotnet_diagnostic.CA1062.severity = none

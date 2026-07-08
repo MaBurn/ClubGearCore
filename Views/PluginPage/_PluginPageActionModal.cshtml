@@ -1,0 +1,342 @@
+@* Plugin Page Action Modal — handles data-plugin-page-action buttons *@
+
+<div class="modal fade" id="pluginPageActionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <form data-plugin-page-action-form>
+                <div class="modal-header">
+                    <div>
+                        <h2 class="modal-title h5 mb-1" data-plugin-page-action-modal-title>Aktion</h2>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schliessen"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger d-none" role="alert" data-plugin-page-action-summary></div>
+                    <div class="row g-3" data-plugin-page-action-fields></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary" data-plugin-page-action-submit>Ausfuehren</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    (() => {
+        if (window.clubGearPluginPageActionsBound) {
+            return;
+        }
+
+        window.clubGearPluginPageActionsBound = true;
+
+        const modalElement = document.getElementById('pluginPageActionModal');
+        const modalInstance = modalElement && typeof bootstrap !== 'undefined'
+            ? bootstrap.Modal.getOrCreateInstance(modalElement)
+            : null;
+        const actionForm = modalElement ? modalElement.querySelector('[data-plugin-page-action-form]') : null;
+        const actionFields = modalElement ? modalElement.querySelector('[data-plugin-page-action-fields]') : null;
+        const actionSummary = modalElement ? modalElement.querySelector('[data-plugin-page-action-summary]') : null;
+        const actionTitle = modalElement ? modalElement.querySelector('[data-plugin-page-action-modal-title]') : null;
+        const submitButton = modalElement ? modalElement.querySelector('[data-plugin-page-action-submit]') : null;
+        const commandEndpoint = '/api/plugin/page-commands';
+        let activeButton = null;
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function selectorValue(value) {
+            return String(value ?? '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        }
+
+        function hasValue(value) {
+            return value !== null && value !== undefined && value !== '';
+        }
+
+        function clearModalErrors() {
+            if (actionSummary) {
+                actionSummary.textContent = '';
+                actionSummary.classList.add('d-none');
+            }
+
+            if (!actionFields) {
+                return;
+            }
+
+            actionFields.querySelectorAll('[data-plugin-page-action-feedback]').forEach(feedback => {
+                feedback.textContent = '';
+            });
+
+            actionFields.querySelectorAll('.is-invalid').forEach(control => {
+                control.classList.remove('is-invalid');
+            });
+        }
+
+        function applyFieldErrors(fieldErrors) {
+            if (!actionFields) {
+                return;
+            }
+
+            const groupedErrors = new Map();
+            (fieldErrors || []).forEach(error => {
+                const key = String(error.fieldKey || '').toLowerCase();
+                const messages = groupedErrors.get(key) || [];
+                messages.push(error.message);
+                groupedErrors.set(key, messages);
+            });
+
+            groupedErrors.forEach((messages, fieldKey) => {
+                const control = actionFields.querySelector(`[data-plugin-page-action-field="${selectorValue(fieldKey)}"]`);
+                if (!control) {
+                    return;
+                }
+
+                control.classList.add('is-invalid');
+                const feedback = actionFields.querySelector(`[data-plugin-page-action-feedback="${selectorValue(fieldKey)}"]`);
+                if (feedback) {
+                    feedback.textContent = messages.join(' ');
+                }
+            });
+        }
+
+        function renderField(field) {
+            const wrapperClass = field.inputType === 'MultilineText' ? 'col-12' : 'col-12 col-md-6';
+            const fieldId = `plugin-page-action-${field.key}`;
+            const constraints = field.constraints || {};
+            const requiredAttr = field.required ? ' required' : '';
+            const placeholderAttr = hasValue(field.placeholder) ? ` placeholder="${escapeHtml(field.placeholder)}"` : '';
+            const helpText = hasValue(field.helpText) ? `<div class="form-text">${escapeHtml(field.helpText)}</div>` : '';
+            const label = `${escapeHtml(field.label)}${field.required ? ' <span class="text-danger">*</span>' : ''}`;
+            const minLengthAttr = hasValue(constraints.minLength) ? ` minlength="${constraints.minLength}"` : '';
+            const maxLengthAttr = hasValue(constraints.maxLength) ? ` maxlength="${constraints.maxLength}"` : '';
+            const minAttr = hasValue(constraints.min) ? ` min="${constraints.min}"` : '';
+            const maxAttr = hasValue(constraints.max) ? ` max="${constraints.max}"` : '';
+            const regexAttr = hasValue(constraints.regexPattern) ? ` pattern="${escapeHtml(constraints.regexPattern)}"` : '';
+            const dateMinAttr = hasValue(constraints.dateMin) ? ` min="${escapeHtml(constraints.dateMin)}"` : '';
+            const dateMaxAttr = hasValue(constraints.dateMax) ? ` max="${escapeHtml(constraints.dateMax)}"` : '';
+
+            if (field.inputType === 'Boolean') {
+                return `
+                    <div class="${wrapperClass}">
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" id="${fieldId}" data-plugin-page-action-field="${escapeHtml(field.key)}"${requiredAttr} />
+                            <label class="form-check-label" for="${fieldId}">${label}</label>
+                        </div>
+                        ${helpText}
+                        <div class="invalid-feedback d-block" data-plugin-page-action-feedback="${escapeHtml(field.key)}"></div>
+                    </div>`;
+            }
+
+            if (field.inputType === 'MultilineText') {
+                return `
+                    <div class="${wrapperClass}">
+                        <label class="form-label" for="${fieldId}">${label}</label>
+                        <textarea class="form-control" id="${fieldId}" rows="4" data-plugin-page-action-field="${escapeHtml(field.key)}"${requiredAttr}${placeholderAttr}${minLengthAttr}${maxLengthAttr}${regexAttr}></textarea>
+                        ${helpText}
+                        <div class="invalid-feedback" data-plugin-page-action-feedback="${escapeHtml(field.key)}"></div>
+                    </div>`;
+            }
+
+            if (field.inputType === 'Number') {
+                return `
+                    <div class="${wrapperClass}">
+                        <label class="form-label" for="${fieldId}">${label}</label>
+                        <input class="form-control" type="number" step="any" id="${fieldId}" data-plugin-page-action-field="${escapeHtml(field.key)}"${requiredAttr}${placeholderAttr}${minAttr}${maxAttr} />
+                        ${helpText}
+                        <div class="invalid-feedback" data-plugin-page-action-feedback="${escapeHtml(field.key)}"></div>
+                    </div>`;
+            }
+
+            if (field.inputType === 'Date') {
+                return `
+                    <div class="${wrapperClass}">
+                        <label class="form-label" for="${fieldId}">${label}</label>
+                        <input class="form-control" type="date" id="${fieldId}" data-plugin-page-action-field="${escapeHtml(field.key)}"${requiredAttr}${dateMinAttr}${dateMaxAttr} />
+                        ${helpText}
+                        <div class="invalid-feedback" data-plugin-page-action-feedback="${escapeHtml(field.key)}"></div>
+                    </div>`;
+            }
+
+            if (field.inputType === 'Select') {
+                const options = Array.isArray(field.options)
+                    ? field.options.map(option => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`).join('')
+                    : '';
+
+                return `
+                    <div class="${wrapperClass}">
+                        <label class="form-label" for="${fieldId}">${label}</label>
+                        <select class="form-select" id="${fieldId}" data-plugin-page-action-field="${escapeHtml(field.key)}"${requiredAttr}>
+                            <option value="">Bitte waehlen</option>
+                            ${options}
+                        </select>
+                        ${helpText}
+                        <div class="invalid-feedback" data-plugin-page-action-feedback="${escapeHtml(field.key)}"></div>
+                    </div>`;
+            }
+
+            return `
+                <div class="${wrapperClass}">
+                    <label class="form-label" for="${fieldId}">${label}</label>
+                    <input class="form-control" type="text" id="${fieldId}" data-plugin-page-action-field="${escapeHtml(field.key)}"${requiredAttr}${placeholderAttr}${minLengthAttr}${maxLengthAttr}${regexAttr} />
+                    ${helpText}
+                    <div class="invalid-feedback" data-plugin-page-action-feedback="${escapeHtml(field.key)}"></div>
+                </div>`;
+        }
+
+        function showSchemaAction(button, schema) {
+            if (!modalElement || !actionFields || !actionForm || !actionTitle || !submitButton) {
+                return;
+            }
+
+            activeButton = button;
+            clearModalErrors();
+            actionFields.innerHTML = schema.map(renderField).join('');
+            actionTitle.textContent = button.getAttribute('data-command-label') || 'Aktion';
+            submitButton.textContent = button.getAttribute('data-command-label') || 'Ausfuehren';
+            modalInstance?.show();
+        }
+
+        async function submitSchemaAction(event) {
+            event.preventDefault();
+
+            if (!activeButton || !actionFields || !submitButton) {
+                return;
+            }
+
+            if (!actionForm.checkValidity()) {
+                actionForm.reportValidity();
+                return;
+            }
+
+            clearModalErrors();
+
+            const schema = JSON.parse(activeButton.getAttribute('data-command-schema') || '[]');
+            const payload = {
+                moduleId: activeButton.getAttribute('data-module-id'),
+                pageKey: activeButton.getAttribute('data-page-key'),
+                commandKey: activeButton.getAttribute('data-command-key'),
+                entityKey: activeButton.getAttribute('data-entity-key') || null,
+                arguments: {}
+            };
+
+            schema.forEach(field => {
+                const control = actionFields.querySelector(`[data-plugin-page-action-field="${selectorValue(field.key)}"]`);
+                if (!control) {
+                    return;
+                }
+
+                if (field.inputType === 'Boolean') {
+                    payload.arguments[field.key] = control.checked ? 'true' : 'false';
+                    return;
+                }
+
+                payload.arguments[field.key] = control.value;
+            });
+
+            submitButton.disabled = true;
+
+            try {
+                const response = await fetch(commandEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok || result.success === false) {
+                    if (result.fieldErrors && result.fieldErrors.length > 0) {
+                        applyFieldErrors(result.fieldErrors);
+                        if (actionSummary) {
+                            actionSummary.textContent = result.message || 'Bitte pruefe die hervorgehobenen Felder.';
+                            actionSummary.classList.remove('d-none');
+                        }
+                        return;
+                    }
+
+                    if (actionSummary) {
+                        actionSummary.textContent = result.message || 'Aktion fehlgeschlagen.';
+                        actionSummary.classList.remove('d-none');
+                    } else {
+                        window.alert(result.message || 'Aktion fehlgeschlagen.');
+                    }
+
+                    return;
+                }
+
+                modalInstance?.hide();
+                window.location.reload();
+            } catch {
+                if (actionSummary) {
+                    actionSummary.textContent = 'Aktion fehlgeschlagen.';
+                    actionSummary.classList.remove('d-none');
+                } else {
+                    window.alert('Aktion fehlgeschlagen.');
+                }
+            } finally {
+                submitButton.disabled = false;
+            }
+        }
+
+        document.addEventListener('click', event => {
+            const button = event.target.closest('[data-plugin-page-action]');
+            if (!button) {
+                return;
+            }
+
+            const schema = JSON.parse(button.getAttribute('data-command-schema') || '[]');
+            if (schema.length > 0) {
+                showSchemaAction(button, schema);
+                return;
+            }
+
+            const confirmMessage = button.getAttribute('data-command-confirm');
+            if (confirmMessage && !window.confirm(confirmMessage)) {
+                return;
+            }
+
+            const payload = {
+                moduleId: button.getAttribute('data-module-id'),
+                pageKey: button.getAttribute('data-page-key'),
+                commandKey: button.getAttribute('data-command-key'),
+                entityKey: button.getAttribute('data-entity-key') || null,
+                arguments: {}
+            };
+
+            button.disabled = true;
+
+            fetch(commandEndpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            })
+                .then(response => response.json().catch(() => ({})).then(result => ({ response, result })))
+                .then(({ response, result }) => {
+                    if (!response.ok || result.success === false) {
+                        window.alert(result.message || 'Aktion fehlgeschlagen.');
+                        return;
+                    }
+
+                    window.location.reload();
+                })
+                .catch(() => window.alert('Aktion fehlgeschlagen.'))
+                .finally(() => {
+                    button.disabled = false;
+                });
+        });
+
+        if (actionForm) {
+            actionForm.addEventListener('submit', submitSchemaAction);
+        }
+    })();
+</script>

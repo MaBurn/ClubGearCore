@@ -1,0 +1,149 @@
+@model IReadOnlyList<ClubGear.Models.PluginAdmin.PluginAdminStatusViewModel>
+@using ClubGear.Models.Feedback
+@{
+    ViewData["Title"] = "Plugin-Administration";
+    var feedback = ViewData[ActionFeedbackViewModel.ViewDataKey] as ActionFeedbackViewModel
+        ?? ActionFeedbackViewModel.FromTempData(TempData);
+    var installedCount = Model.Count(plugin => plugin.IsInstalled);
+    var activeCount = Model.Count(plugin => plugin.IsActive && plugin.IsRuntimeRegistered);
+    var attentionCount = Model.Count(plugin =>
+        !plugin.IsContractCompatible
+        || !string.IsNullOrWhiteSpace(plugin.LastError)
+        || (plugin.IsActive && !plugin.IsRuntimeRegistered));
+}
+
+<div class="cg-page cg-page--plugin-admin plugin-admin-page" data-page="plugin-admin">
+    <section class="cg-page-section">
+        <div class="plugin-admin-hero cg-panel">
+            <div>
+                <p class="plugin-admin-eyebrow">Systemerweiterungen</p>
+                <h1 class="plugin-admin-title">Plugins verwalten</h1>
+                <p class="plugin-admin-copy">
+                    Installationen, Laufzeitstatus und Kompatibilität an einem Ort.
+                </p>
+            </div>
+
+            <div class="plugin-admin-stats" aria-label="Plugin-Übersicht">
+                <div class="plugin-admin-stat">
+                    <span class="plugin-admin-stat__value">@installedCount</span>
+                    <span class="plugin-admin-stat__label">Installiert</span>
+                </div>
+                <div class="plugin-admin-stat plugin-admin-stat--active">
+                    <span class="plugin-admin-stat__value">@activeCount</span>
+                    <span class="plugin-admin-stat__label">Aktiv</span>
+                </div>
+                <div class="plugin-admin-stat @(attentionCount > 0 ? "plugin-admin-stat--attention" : null)">
+                    <span class="plugin-admin-stat__value">@attentionCount</span>
+                    <span class="plugin-admin-stat__label">Prüfen</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    @if (feedback is not null)
+    {
+        <section class="cg-page-section">
+            <div class="alert @feedback.AlertCssClass plugin-admin-feedback mb-0" role="status" data-feedback-kind="@feedback.Kind">
+                @feedback.Message
+            </div>
+        </section>
+    }
+
+    <section class="cg-page-section">
+        <div class="plugin-admin-section-heading">
+            <div>
+                <p class="plugin-admin-eyebrow">Betrieb</p>
+                <h2 class="plugin-admin-section-title">Installierte Plugins</h2>
+            </div>
+            <span class="plugin-admin-section-meta">@Model.Count Einträge</span>
+        </div>
+
+        <partial name="_PluginStatusTable" model="Model" />
+    </section>
+
+    <section class="cg-page-section">
+        <div class="plugin-admin-section-heading">
+            <div>
+                <p class="plugin-admin-eyebrow">Installation</p>
+                <h2 class="plugin-admin-section-title">Plugin hinzufügen oder aktualisieren</h2>
+            </div>
+        </div>
+
+        <div class="plugin-admin-install-grid">
+            <section class="plugin-admin-install-card cg-panel">
+                <div class="plugin-admin-install-card__header">
+                    <div class="plugin-admin-install-card__icon" aria-hidden="true">
+                        <i class="bi bi-cloud-arrow-down"></i>
+                    </div>
+                    <div>
+                        <h3 class="plugin-admin-install-card__title">Aus dem Marketplace</h3>
+                        <p class="plugin-admin-install-card__copy">Installation über eine bekannte Modul-ID.</p>
+                    </div>
+                </div>
+
+                <form asp-action="InstallFromMarketplace" method="post" class="plugin-admin-form" data-plugin-admin-action>
+                    @Html.AntiForgeryToken()
+                    <div>
+                        <label class="form-label" for="plugin-module-id">Plugin-Modul-ID</label>
+                        <input id="plugin-module-id" name="moduleId" class="form-control" placeholder="clubgear.plugin.example" />
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-download me-2" aria-hidden="true"></i>Installieren
+                    </button>
+                </form>
+            </section>
+
+            <section class="plugin-admin-install-card cg-panel">
+                <div class="plugin-admin-install-card__header">
+                    <div class="plugin-admin-install-card__icon plugin-admin-install-card__icon--signed" aria-hidden="true">
+                        <i class="bi bi-file-earmark-lock"></i>
+                    </div>
+                    <div>
+                        <h3 class="plugin-admin-install-card__title">Signiertes ZIP-Paket</h3>
+                        <p class="plugin-admin-install-card__copy">Lokales Paket mit Hash, Signatur und öffentlichem Schlüssel.</p>
+                    </div>
+                </div>
+
+                <form asp-action="InstallFromZip" method="post" enctype="multipart/form-data" class="plugin-admin-form" data-plugin-admin-action>
+                    @Html.AntiForgeryToken()
+
+                    <div class="plugin-admin-upload">
+                        <label class="plugin-admin-upload__label" for="plugin-zip-file">
+                            <i class="bi bi-file-earmark-zip" aria-hidden="true"></i>
+                            <span>ZIP-Paket auswählen</span>
+                        </label>
+                        <input id="plugin-zip-file" name="zipFile" type="file" class="visually-hidden" accept=".zip,application/zip" data-plugin-zip-file required />
+                        <div class="plugin-admin-upload__filename" data-plugin-zip-file-label>Noch keine Datei ausgewählt</div>
+                    </div>
+
+                    <div>
+                        <label class="form-label" for="plugin-zip-sha256">Erwarteter SHA-256-Hash</label>
+                        <input id="plugin-zip-sha256" name="expectedSha256Hex" class="form-control plugin-admin-code-input" placeholder="64-stelliger SHA-256-Hash" required />
+                    </div>
+
+                    <details class="plugin-admin-signature-details">
+                        <summary>Signaturdaten eingeben</summary>
+                        <div class="plugin-admin-signature-fields">
+                            <div>
+                                <label class="form-label" for="plugin-zip-signature">Base64-Signatur</label>
+                                <textarea id="plugin-zip-signature" name="signatureBase64" class="form-control plugin-admin-code-input" rows="3" required></textarea>
+                            </div>
+                            <div>
+                                <label class="form-label" for="plugin-zip-public-key">Public Key (PEM)</label>
+                                <textarea id="plugin-zip-public-key" name="signerPublicKeyPem" class="form-control plugin-admin-code-input" rows="5" placeholder="-----BEGIN PUBLIC KEY-----" required></textarea>
+                            </div>
+                        </div>
+                    </details>
+
+                    <button type="submit" class="btn btn-outline-primary">
+                        <i class="bi bi-shield-check me-2" aria-hidden="true"></i>Paket prüfen und installieren
+                    </button>
+                </form>
+            </section>
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script src="~/js/plugin-admin.js" asp-append-version="true"></script>
+}

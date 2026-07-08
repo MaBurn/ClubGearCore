@@ -1,0 +1,257 @@
+@model ClubGear.Models.Admin.MembershipTypesViewModel
+@using ClubGear.Models
+@using ClubGear.Models.Feedback
+@{
+    ViewData["Title"] = "Mitgliedsarten";
+}
+
+<div class="cg-page cg-page--membership-types" data-page="membership-types">
+    <section class="cg-page-section cg-page-header d-flex flex-wrap justify-content-between align-items-start gap-3">
+        <div>
+            <h1 class="h3 mb-1">Mitgliedsarten</h1>
+            <p class="text-muted mb-0">Mitgliedsarten und deren Metadatenfelder verwalten.</p>
+        </div>
+    </section>
+
+    @if (Model.Feedback is not null)
+    {
+        <section class="cg-page-section">
+            <div class="alert @Model.Feedback.AlertCssClass mb-0" role="status">
+                @Model.Feedback.Message
+            </div>
+        </section>
+    }
+
+    <section class="cg-page-section">
+        <div class="card border-primary mb-4">
+            <div class="card-header bg-primary text-white">
+                <h2 class="h6 mb-0 text-white">Neue Mitgliedsart anlegen</h2>
+            </div>
+            <div class="card-body">
+                <form asp-controller="MembershipTypes" asp-action="CreateType" method="post" class="row g-2 align-items-end">
+                    @Html.AntiForgeryToken()
+                    <div class="col-12 col-md-2">
+                        <label class="form-label">Key</label>
+                        <input class="form-control" name="Key" required data-membership-type-new-key />
+                    </div>
+                    <div class="col-12 col-md-2">
+                        <label class="form-label">Name</label>
+                        <input class="form-control" name="Name" required />
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label">Beschreibung</label>
+                        <input class="form-control" name="Description" />
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label">Rabatt (%)</label>
+                        <input class="form-control" type="number" name="DefaultDiscountPercent" />
+                    </div>
+                    <div class="col-6 col-md-1">
+                        <label class="form-label">Reihenfolge</label>
+                        <input class="form-control" type="number" name="SortOrder" value="0" />
+                    </div>
+                    <div class="col-6 col-md-1 form-check ms-2">
+                        <input class="form-check-input" type="checkbox" name="IsActive" value="true" checked />
+                        <label class="form-check-label">Aktiv</label>
+                    </div>
+                    <div class="col-6 col-md-2 form-check ms-2">
+                        <input class="form-check-input" type="checkbox" name="AllowsSubMembers" value="true" data-membership-type-allows-submembers />
+                        <label class="form-check-label">Erlaubt Untermitglieder</label>
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label">Bezeichnung der Untermitglieder</label>
+                        <input class="form-control" name="SubMemberLabel" data-membership-type-submember-label />
+                    </div>
+                    <div class="col-6 col-md-1">
+                        <button type="submit" class="btn btn-primary" data-membership-type-create>Anlegen</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        @if (!Model.Types.Any())
+        {
+            <div class="alert alert-info">Keine Mitgliedsarten vorhanden.</div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm align-middle" data-membership-types-table>
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">Mitgliedsart</th>
+                            <th scope="col" class="text-center">Felder</th>
+                            <th scope="col" class="text-center">System</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var type in Model.Types)
+                        {
+                            <tr data-membership-type-row="@type.Key">
+                                <td colspan="3">
+                                    <form asp-controller="MembershipTypes" asp-action="UpdateType" method="post" class="row g-2 align-items-end mb-2">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="Id" value="@type.Id" />
+                                        <input type="hidden" name="SortOrder" value="@type.SortOrder" />
+                                        <div class="col-12 col-md-2">
+                                            <label class="form-label small text-muted">Key</label>
+                                            <input class="form-control form-control-sm" value="@type.Key" disabled />
+                                        </div>
+                                        <div class="col-12 col-md-2">
+                                            <label class="form-label small text-muted">Name</label>
+                                            <input class="form-control form-control-sm" name="Name" value="@type.Name" />
+                                        </div>
+                                        <div class="col-12 col-md-3">
+                                            <label class="form-label small text-muted">Beschreibung</label>
+                                            <input class="form-control form-control-sm" name="Description" value="@type.Description" />
+                                        </div>
+                                        <div class="col-6 col-md-2">
+                                            <label class="form-label small text-muted">Standard-Rabatt (%)</label>
+                                            <input class="form-control form-control-sm" type="number" name="DefaultDiscountPercent" value="@type.DefaultDiscountPercent" />
+                                        </div>
+                                        <div class="col-6 col-md-1 form-check">
+                                            <input class="form-check-input" type="checkbox" name="IsActive" value="true" checked="@type.IsActive" />
+                                            <label class="form-check-label small">Aktiv</label>
+                                        </div>
+                                        <div class="col-6 col-md-2 form-check">
+                                            <input class="form-check-input" type="checkbox" name="AllowsSubMembers" value="true" checked="@type.AllowsSubMembers" data-membership-type-allows-submembers="@type.Key" />
+                                            <label class="form-check-label small">Erlaubt Untermitglieder</label>
+                                        </div>
+                                        <div class="col-12 col-md-2">
+                                            <label class="form-label small text-muted">Bezeichnung der Untermitglieder</label>
+                                            <input class="form-control form-control-sm" name="SubMemberLabel" value="@type.SubMemberLabel" data-membership-type-submember-label="@type.Key" />
+                                        </div>
+                                        <div class="col-12 col-md-2 d-flex gap-2">
+                                            <button type="submit" class="btn btn-sm btn-outline-primary" data-membership-type-save>Speichern</button>
+                                            @if (type.IsSystemDefined)
+                                            {
+                                                <span class="badge bg-secondary align-self-center">System</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-light text-dark align-self-center">Benutzerdefiniert</span>
+                                            }
+                                        </div>
+                                    </form>
+                                    <div class="d-flex gap-2 mb-2">
+                                        <span class="text-muted small align-self-center">@type.Fields.Count Felder</span>
+                                        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#fields-@type.Id">
+                                            Felder verwalten
+                                        </button>
+                                        <form asp-controller="MembershipTypes" asp-action="DeleteType" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@type.Id" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" data-membership-type-delete
+                                                    onclick="return confirm('Mitgliedsart wirklich loeschen?');">Loeschen</button>
+                                        </form>
+                                    </div>
+
+                                    <div class="collapse" id="fields-@type.Id" data-membership-type-fields="@type.Key">
+                                        <table class="table table-sm table-borderless mb-2">
+                                            <thead>
+                                                <tr>
+                                                    <th>Key</th>
+                                                    <th>Label</th>
+                                                    <th>Typ</th>
+                                                    <th>Pflicht</th>
+                                                    <th>Reihenf.</th>
+                                                    <th>System</th>
+                                                    <th class="text-end">Aktionen</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var field in type.Fields)
+                                                {
+                                                    <tr data-membership-type-field-row="@field.Key">
+                                                        <td colspan="7">
+                                                            <form asp-controller="MembershipTypes" asp-action="UpdateField" method="post" class="row g-2 align-items-end">
+                                                                @Html.AntiForgeryToken()
+                                                                <input type="hidden" name="Id" value="@field.Id" />
+                                                                <div class="col-12 col-md-2">
+                                                                    <input class="form-control form-control-sm" name="Key" value="@field.Key" />
+                                                                </div>
+                                                                <div class="col-12 col-md-2">
+                                                                    <input class="form-control form-control-sm" name="Label" value="@field.Label" />
+                                                                </div>
+                                                                <div class="col-12 col-md-2">
+                                                                    <select class="form-select form-select-sm" name="FieldType">
+                                                                        @foreach (var fieldType in Model.FieldTypes)
+                                                                        {
+                                                                            <option value="@fieldType" selected="@(fieldType == field.FieldType)">@fieldType</option>
+                                                                        }
+                                                                    </select>
+                                                                </div>
+                                                                <div class="col-6 col-md-1 form-check">
+                                                                    <input class="form-check-input" type="checkbox" name="IsRequired" value="true" checked="@field.IsRequired" />
+                                                                </div>
+                                                                <div class="col-6 col-md-1">
+                                                                    <input class="form-control form-control-sm" type="number" name="SortOrder" value="@field.SortOrder" />
+                                                                </div>
+                                                                <div class="col-6 col-md-1">
+                                                                    @if (field.IsSystemDefined)
+                                                                    {
+                                                                        <span class="badge bg-secondary">System</span>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <span class="badge bg-light text-dark">Custom</span>
+                                                                    }
+                                                                </div>
+                                                                <div class="col-12 col-md-3 d-flex gap-2 justify-content-md-end">
+                                                                    <button type="submit" class="btn btn-sm btn-outline-primary" data-membership-field-save>Speichern</button>
+                                                                </div>
+                                                            </form>
+                                                            <form asp-controller="MembershipTypes" asp-action="RemoveField" method="post" class="d-inline">
+                                                                @Html.AntiForgeryToken()
+                                                                <input type="hidden" name="id" value="@field.Id" />
+                                                                <button type="submit" class="btn btn-sm btn-outline-danger mt-1" data-membership-field-remove
+                                                                        onclick="return confirm('Feld wirklich entfernen?');">Entfernen</button>
+                                                            </form>
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+
+                                        <form asp-controller="MembershipTypes" asp-action="AddField" method="post" class="row g-2 align-items-end">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="MembershipTypeId" value="@type.Id" />
+                                            <div class="col-12 col-md-2">
+                                                <label class="form-label small text-muted">Key</label>
+                                                <input class="form-control form-control-sm" name="Key" required data-membership-field-new-key />
+                                            </div>
+                                            <div class="col-12 col-md-2">
+                                                <label class="form-label small text-muted">Label</label>
+                                                <input class="form-control form-control-sm" name="Label" required />
+                                            </div>
+                                            <div class="col-12 col-md-2">
+                                                <label class="form-label small text-muted">Typ</label>
+                                                <select class="form-select form-select-sm" name="FieldType">
+                                                    @foreach (var fieldType in Model.FieldTypes)
+                                                    {
+                                                        <option value="@fieldType">@fieldType</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                            <div class="col-6 col-md-1 form-check">
+                                                <input class="form-check-input" type="checkbox" name="IsRequired" value="true" />
+                                                <label class="form-check-label small">Pflicht</label>
+                                            </div>
+                                            <div class="col-6 col-md-1">
+                                                <label class="form-label small text-muted">Reihenf.</label>
+                                                <input class="form-control form-control-sm" type="number" name="SortOrder" value="0" />
+                                            </div>
+                                            <div class="col-12 col-md-2">
+                                                <button type="submit" class="btn btn-sm btn-secondary" data-membership-field-create>Feld hinzufuegen</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>

@@ -1,0 +1,245 @@
+@model ClubGear.Models.MemberFilters.MemberListSegmentsViewModel
+
+@functions {
+    private static string ResolveMemberKind(ClubGear.Models.Member member)
+    {
+        return member.MembershipType?.Name ?? "Standard";
+    }
+
+    private static IEnumerable<ClubGear.Models.MemberMetadataValue> ResolveMetadataValues(ClubGear.Models.Member member)
+    {
+        return member.MetadataValues
+            .Where(v => v.Field is not null)
+            .OrderBy(v => v.Field!.SortOrder);
+    }
+
+    private static string FormatMetadataValue(ClubGear.Models.MemberMetadataValue value)
+    {
+        if (string.IsNullOrWhiteSpace(value.Value))
+        {
+            return "-";
+        }
+
+        return value.Field!.FieldType switch
+        {
+            ClubGear.Models.MemberMetadataFieldType.Boolean =>
+                string.Equals(value.Value, "true", StringComparison.OrdinalIgnoreCase) ? "Ja" : "Nein",
+            ClubGear.Models.MemberMetadataFieldType.Date =>
+                DateTime.TryParse(value.Value, out var date) ? date.ToString("dd.MM.yyyy") : value.Value,
+            ClubGear.Models.MemberMetadataFieldType.MemberReference =>
+                $"Mitglied-Nr. {value.Value}",
+            _ => value.Value
+        };
+    }
+}
+
+<div class="members-segment-summary-grid mb-3">
+    <article class="members-segment-summary members-segment-summary--active">
+        <span class="members-segment-summary__label">Aktiv</span>
+        <strong class="members-segment-summary__value">@Model.ActiveMembers.Count</strong>
+    </article>
+    <article class="members-segment-summary members-segment-summary--inactive">
+        <span class="members-segment-summary__label">Inaktiv</span>
+        <strong class="members-segment-summary__value">@Model.InactiveMembers.Count</strong>
+    </article>
+    <article class="members-segment-summary members-segment-summary--special">
+        <span class="members-segment-summary__label">Spezial</span>
+        <strong class="members-segment-summary__value">@Model.SpecialMembers.Count</strong>
+    </article>
+</div>
+
+<div class="member-segments-grid mt-3">
+    <section class="member-segment-card" data-segment="active">
+        <header class="card-header member-segment-card__header member-segment-card__header--active">
+            <div>
+                <p class="member-segment-card__eyebrow">Segment</p>
+                <strong class="member-segment-card__title">Aktive Mitglieder</strong>
+            </div>
+            <span class="member-segment-card__count">@Model.ActiveMembers.Count</span>
+        </header>
+        @if (Model.ActiveMembers.Count == 0)
+        {
+            <p class="member-segment-empty-state" data-segment-empty="active">Keine aktiven Mitglieder vorhanden.</p>
+        }
+        else
+        {
+            <ul class="member-segment-list">
+                @foreach (var member in Model.ActiveMembers)
+                {
+                    <li class="member-segment-item" data-member-id="@member.Id">
+                        <div class="member-segment-item__content">
+                            <div class="member-segment-item__topline">
+                                <span class="member-segment-item__kind">@ResolveMemberKind(member)</span>
+                                <span class="member-segment-item__status @(member.IsVerified ? "member-segment-item__status--verified" : "member-segment-item__status--unverified")">
+                                    @(member.IsVerified ? "Verifiziert" : "Unverifiziert")
+                                </span>
+                            </div>
+
+                            <label class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="SelectedMemberIds" value="@member.Id" data-member-bulk-select />
+                                <span class="form-check-label">Fuer Bulk-Aktion markieren</span>
+                            </label>
+
+                            <strong class="member-segment-item__name">@member.FullName</strong>
+                            <div class="member-segment-item__number">@member.MemberNumber</div>
+
+                            <dl class="member-segment-item__meta">
+                                <div>
+                                    <dt>E-Mail</dt>
+                                    <dd>@(member.Email ?? "Nicht hinterlegt")</dd>
+                                </div>
+                                <div>
+                                    <dt>Telefon</dt>
+                                    <dd>@(member.PhoneNumber ?? "Nicht hinterlegt")</dd>
+                                </div>
+                                <div>
+                                    <dt>Seit</dt>
+                                    <dd>@member.JoinedAt.ToLocalTime().ToString("dd.MM.yyyy")</dd>
+                                </div>
+                                @foreach (var metadataValue in ResolveMetadataValues(member))
+                                {
+                                    <div>
+                                        <dt>@metadataValue.Field!.Label</dt>
+                                        <dd>@FormatMetadataValue(metadataValue)</dd>
+                                    </div>
+                                }
+                            </dl>
+                        </div>
+                        <div class="member-segment-actions">
+                            <a asp-action="Details" asp-route-id="@member.Id" class="btn btn-sm btn-outline-primary">Details</a>
+                            <a asp-action="Edit" asp-route-id="@member.Id" class="btn btn-sm btn-outline-secondary">Bearbeiten</a>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+
+    <section class="member-segment-card" data-segment="inactive">
+        <header class="card-header member-segment-card__header member-segment-card__header--inactive">
+            <div>
+                <p class="member-segment-card__eyebrow">Segment</p>
+                <strong class="member-segment-card__title">Inaktive Mitglieder</strong>
+            </div>
+            <span class="member-segment-card__count">@Model.InactiveMembers.Count</span>
+        </header>
+        @if (Model.InactiveMembers.Count == 0)
+        {
+            <p class="member-segment-empty-state" data-segment-empty="inactive">Keine inaktiven Mitglieder vorhanden.</p>
+        }
+        else
+        {
+            <ul class="member-segment-list">
+                @foreach (var member in Model.InactiveMembers)
+                {
+                    <li class="member-segment-item" data-member-id="@member.Id">
+                        <div class="member-segment-item__content">
+                            <div class="member-segment-item__topline">
+                                <span class="member-segment-item__kind">@ResolveMemberKind(member)</span>
+                                <span class="member-segment-item__status member-segment-item__status--inactive">Inaktiv</span>
+                            </div>
+
+                            <label class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="SelectedMemberIds" value="@member.Id" data-member-bulk-select />
+                                <span class="form-check-label">Fuer Bulk-Aktion markieren</span>
+                            </label>
+
+                            <strong class="member-segment-item__name">@member.FullName</strong>
+                            <div class="member-segment-item__number">@member.MemberNumber</div>
+
+                            <dl class="member-segment-item__meta">
+                                <div>
+                                    <dt>E-Mail</dt>
+                                    <dd>@(member.Email ?? "Nicht hinterlegt")</dd>
+                                </div>
+                                <div>
+                                    <dt>Austritt</dt>
+                                    <dd>@(member.Leaved?.ToString("dd.MM.yyyy") ?? "Nicht hinterlegt")</dd>
+                                </div>
+                                <div>
+                                    <dt>Letzte Aenderung</dt>
+                                    <dd>@(member.LastUpdated?.ToString("dd.MM.yyyy") ?? "Nicht hinterlegt")</dd>
+                                </div>
+                                @foreach (var metadataValue in ResolveMetadataValues(member))
+                                {
+                                    <div>
+                                        <dt>@metadataValue.Field!.Label</dt>
+                                        <dd>@FormatMetadataValue(metadataValue)</dd>
+                                    </div>
+                                }
+                            </dl>
+                        </div>
+                        <div class="member-segment-actions">
+                            <a asp-action="Details" asp-route-id="@member.Id" class="btn btn-sm btn-outline-primary">Details</a>
+                            <a asp-action="Edit" asp-route-id="@member.Id" class="btn btn-sm btn-outline-secondary">Bearbeiten</a>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+
+    <section class="member-segment-card" data-segment="special">
+        <header class="card-header member-segment-card__header member-segment-card__header--special">
+            <div>
+                <p class="member-segment-card__eyebrow">Segment</p>
+                <strong class="member-segment-card__title">Spezial-Mitglieder</strong>
+            </div>
+            <span class="member-segment-card__count">@Model.SpecialMembers.Count</span>
+        </header>
+        @if (Model.SpecialMembers.Count == 0)
+        {
+            <p class="member-segment-empty-state" data-segment-empty="special">Keine Spezial-Mitglieder vorhanden.</p>
+        }
+        else
+        {
+            <ul class="member-segment-list">
+                @foreach (var member in Model.SpecialMembers)
+                {
+                    <li class="member-segment-item" data-member-id="@member.Id">
+                        <div class="member-segment-item__content">
+                            <div class="member-segment-item__topline">
+                                <span class="member-segment-item__kind">@ResolveMemberKind(member)</span>
+                                <span class="member-segment-item__status member-segment-item__status--special">Spezial</span>
+                            </div>
+
+                            <label class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="SelectedMemberIds" value="@member.Id" data-member-bulk-select />
+                                <span class="form-check-label">Fuer Bulk-Aktion markieren</span>
+                            </label>
+
+                            <strong class="member-segment-item__name">@member.FullName</strong>
+                            <div class="member-segment-item__number">@member.MemberNumber</div>
+
+                            <dl class="member-segment-item__meta">
+                                <div>
+                                    <dt>Typ</dt>
+                                    <dd>@ResolveMemberKind(member)</dd>
+                                </div>
+                                <div>
+                                    <dt>Newsletter</dt>
+                                    <dd>@(member.NewsletterConsent ? "Ja" : "Nein")</dd>
+                                </div>
+                                <div>
+                                    <dt>Datenschutz</dt>
+                                    <dd>@(member.DataprivacyAccepted ? "Akzeptiert" : "Offen")</dd>
+                                </div>
+                                @foreach (var metadataValue in ResolveMetadataValues(member))
+                                {
+                                    <div>
+                                        <dt>@metadataValue.Field!.Label</dt>
+                                        <dd>@FormatMetadataValue(metadataValue)</dd>
+                                    </div>
+                                }
+                            </dl>
+                        </div>
+                        <div class="member-segment-actions">
+                            <a asp-action="Details" asp-route-id="@member.Id" class="btn btn-sm btn-outline-primary">Details</a>
+                            <a asp-action="Edit" asp-route-id="@member.Id" class="btn btn-sm btn-outline-secondary">Bearbeiten</a>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+</div>

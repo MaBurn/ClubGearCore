@@ -1,0 +1,370 @@
+@model ClubGear.Services.Abstractions.MemberPluginSlotSnapshot
+@using ClubGear.Services.Abstractions
+
+@{
+    var hasSchemaActions = Model.Actions.Any(action => action.Action.ArgumentSchema is { Count: > 0 });
+    var actionEndpoint = ViewData["PluginActionEndpoint"] as string ?? "/api/member/plugin-actions";
+}
+
+@if (hasSchemaActions)
+{
+    <div class="modal fade" id="member-plugin-action-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <form data-plugin-action-form>
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title h5 mb-1" data-plugin-action-modal-title>Plugin-Aktion</h2>
+                            <p class="text-muted small mb-0" data-plugin-action-modal-meta></p>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schliessen"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-danger d-none" role="alert" data-plugin-action-summary></div>
+                        <div class="row g-3" data-plugin-action-fields></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                        <button type="submit" class="btn btn-primary" data-plugin-action-submit>Ausfuehren</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@if (Model.Actions.Count > 0)
+{
+    <script>
+        (() => {
+            if (window.clubGearMemberPluginActionsBound) {
+                return;
+            }
+
+            window.clubGearMemberPluginActionsBound = true;
+
+            const modalElement = document.getElementById('member-plugin-action-modal');
+            let modalInstance = null;
+            const actionForm = modalElement ? modalElement.querySelector('[data-plugin-action-form]') : null;
+            const actionFields = modalElement ? modalElement.querySelector('[data-plugin-action-fields]') : null;
+            const actionSummary = modalElement ? modalElement.querySelector('[data-plugin-action-summary]') : null;
+            const actionTitle = modalElement ? modalElement.querySelector('[data-plugin-action-modal-title]') : null;
+            const actionMeta = modalElement ? modalElement.querySelector('[data-plugin-action-modal-meta]') : null;
+            const submitButton = modalElement ? modalElement.querySelector('[data-plugin-action-submit]') : null;
+            const actionEndpoint = '@actionEndpoint';
+            let activeActionButton = null;
+
+            function getModalInstance() {
+                if (!modalElement || typeof bootstrap === 'undefined') {
+                    return null;
+                }
+
+                modalInstance ??= bootstrap.Modal.getOrCreateInstance(modalElement);
+                return modalInstance;
+            }
+
+            function escapeHtml(value) {
+                return String(value ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            function selectorValue(value) {
+                return String(value ?? '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+            }
+
+            function hasValue(value) {
+                return value !== null && value !== undefined && value !== '';
+            }
+
+            function clearModalErrors() {
+                if (actionSummary) {
+                    actionSummary.textContent = '';
+                    actionSummary.classList.add('d-none');
+                }
+
+                if (!actionFields) {
+                    return;
+                }
+
+                actionFields.querySelectorAll('[data-plugin-action-feedback]').forEach(feedback => {
+                    feedback.textContent = '';
+                });
+
+                actionFields.querySelectorAll('.is-invalid').forEach(control => {
+                    control.classList.remove('is-invalid');
+                });
+            }
+
+            function applyFieldErrors(fieldErrors) {
+                if (!actionFields) {
+                    return;
+                }
+
+                const groupedErrors = new Map();
+                (fieldErrors || []).forEach(error => {
+                    const key = String(error.fieldKey || '').toLowerCase();
+                    const messages = groupedErrors.get(key) || [];
+                    messages.push(error.message);
+                    groupedErrors.set(key, messages);
+                });
+
+                groupedErrors.forEach((messages, fieldKey) => {
+                    const control = actionFields.querySelector(`[data-plugin-action-field="${selectorValue(fieldKey)}"]`);
+                    if (!control) {
+                        return;
+                    }
+
+                    control.classList.add('is-invalid');
+                    const feedback = actionFields.querySelector(`[data-plugin-action-feedback="${selectorValue(fieldKey)}"]`);
+                    if (feedback) {
+                        feedback.textContent = messages.join(' ');
+                    }
+                });
+            }
+
+            function renderField(field) {
+                const wrapperClass = field.inputType === 'MultilineText' ? 'col-12' : 'col-12 col-md-6';
+                const fieldId = `plugin-action-${field.key}`;
+                const constraints = field.constraints || {};
+                const requiredAttr = field.required ? ' required' : '';
+                const placeholderAttr = hasValue(field.placeholder) ? ` placeholder="${escapeHtml(field.placeholder)}"` : '';
+                const defaultValueAttr = hasValue(field.defaultValue) ? ` value="${escapeHtml(field.defaultValue)}"` : '';
+                const helpText = hasValue(field.helpText) ? `<div class="form-text">${escapeHtml(field.helpText)}</div>` : '';
+                const label = `${escapeHtml(field.label)}${field.required ? ' <span class="text-danger">*</span>' : ''}`;
+                const minLengthAttr = hasValue(constraints.minLength) ? ` minlength="${constraints.minLength}"` : '';
+                const maxLengthAttr = hasValue(constraints.maxLength) ? ` maxlength="${constraints.maxLength}"` : '';
+                const minAttr = hasValue(constraints.min) ? ` min="${constraints.min}"` : '';
+                const maxAttr = hasValue(constraints.max) ? ` max="${constraints.max}"` : '';
+                const regexAttr = hasValue(constraints.regexPattern) ? ` pattern="${escapeHtml(constraints.regexPattern)}"` : '';
+                const dateMinAttr = hasValue(constraints.dateMin) ? ` min="${escapeHtml(constraints.dateMin)}"` : '';
+                const dateMaxAttr = hasValue(constraints.dateMax) ? ` max="${escapeHtml(constraints.dateMax)}"` : '';
+
+                if (field.inputType === 'Boolean') {
+                    return `
+                        <div class="${wrapperClass}">
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" id="${fieldId}" data-plugin-action-field="${escapeHtml(field.key)}"${requiredAttr} />
+                                <label class="form-check-label" for="${fieldId}">${label}</label>
+                            </div>
+                            ${helpText}
+                            <div class="invalid-feedback d-block" data-plugin-action-feedback="${escapeHtml(field.key)}"></div>
+                        </div>`;
+                }
+
+                if (field.inputType === 'MultilineText') {
+                    return `
+                        <div class="${wrapperClass}">
+                            <label class="form-label" for="${fieldId}">${label}</label>
+                            <textarea class="form-control" id="${fieldId}" rows="4" data-plugin-action-field="${escapeHtml(field.key)}"${requiredAttr}${placeholderAttr}${minLengthAttr}${maxLengthAttr}${regexAttr}></textarea>
+                            ${helpText}
+                            <div class="invalid-feedback" data-plugin-action-feedback="${escapeHtml(field.key)}"></div>
+                        </div>`;
+                }
+
+                if (field.inputType === 'Number') {
+                    return `
+                        <div class="${wrapperClass}">
+                            <label class="form-label" for="${fieldId}">${label}</label>
+                            <input class="form-control" type="number" step="any" id="${fieldId}" data-plugin-action-field="${escapeHtml(field.key)}"${requiredAttr}${placeholderAttr}${defaultValueAttr}${minAttr}${maxAttr} />
+                            ${helpText}
+                            <div class="invalid-feedback" data-plugin-action-feedback="${escapeHtml(field.key)}"></div>
+                        </div>`;
+                }
+
+                if (field.inputType === 'Date') {
+                    return `
+                        <div class="${wrapperClass}">
+                            <label class="form-label" for="${fieldId}">${label}</label>
+                            <input class="form-control" type="date" id="${fieldId}" data-plugin-action-field="${escapeHtml(field.key)}"${requiredAttr}${defaultValueAttr}${dateMinAttr}${dateMaxAttr} />
+                            ${helpText}
+                            <div class="invalid-feedback" data-plugin-action-feedback="${escapeHtml(field.key)}"></div>
+                        </div>`;
+                }
+
+                if (field.inputType === 'Select') {
+                    const options = Array.isArray(field.options)
+                        ? field.options.map(option => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`).join('')
+                        : '';
+
+                    return `
+                        <div class="${wrapperClass}">
+                            <label class="form-label" for="${fieldId}">${label}</label>
+                            <select class="form-select" id="${fieldId}" data-plugin-action-field="${escapeHtml(field.key)}"${requiredAttr}>
+                                <option value="">Bitte waehlen</option>
+                                ${options}
+                            </select>
+                            ${helpText}
+                            <div class="invalid-feedback" data-plugin-action-feedback="${escapeHtml(field.key)}"></div>
+                        </div>`;
+                }
+
+                return `
+                    <div class="${wrapperClass}">
+                        <label class="form-label" for="${fieldId}">${label}</label>
+                        <input class="form-control" type="text" id="${fieldId}" data-plugin-action-field="${escapeHtml(field.key)}"${requiredAttr}${placeholderAttr}${defaultValueAttr}${minLengthAttr}${maxLengthAttr}${regexAttr} />
+                        ${helpText}
+                        <div class="invalid-feedback" data-plugin-action-feedback="${escapeHtml(field.key)}"></div>
+                    </div>`;
+            }
+
+            function showSchemaAction(button, schema) {
+                if (!modalElement || !actionFields || !actionForm || !actionTitle || !actionMeta || !submitButton) {
+                    return;
+                }
+
+                activeActionButton = button;
+                clearModalErrors();
+                actionFields.innerHTML = schema.map(renderField).join('');
+                actionTitle.textContent = button.getAttribute('data-plugin-action-label') || 'Plugin-Aktion';
+                actionMeta.textContent = button.getAttribute('data-plugin-action-confirm') || '';
+                submitButton.textContent = button.getAttribute('data-plugin-action-label') || 'Ausfuehren';
+                submitButton.className = button.className;
+                getModalInstance()?.show();
+            }
+
+            async function submitSchemaAction(event) {
+                event.preventDefault();
+
+                if (!activeActionButton || !actionFields || !submitButton) {
+                    return;
+                }
+
+                if (!actionForm.checkValidity()) {
+                    actionForm.reportValidity();
+                    return;
+                }
+
+                clearModalErrors();
+
+                const schema = JSON.parse(activeActionButton.getAttribute('data-plugin-action-schema') || '[]');
+                const payload = {
+                    moduleId: activeActionButton.getAttribute('data-plugin-module-id'),
+                    actionKey: activeActionButton.getAttribute('data-plugin-action-key'),
+                    arguments: {}
+                };
+                const memberId = activeActionButton.getAttribute('data-plugin-member-id');
+                if (memberId) {
+                    payload.memberId = Number(memberId);
+                }
+
+                schema.forEach(field => {
+                    const control = actionFields.querySelector(`[data-plugin-action-field="${selectorValue(field.key)}"]`);
+                    if (!control) {
+                        return;
+                    }
+
+                    if (field.inputType === 'Boolean') {
+                        payload.arguments[field.key] = control.checked ? 'true' : 'false';
+                        return;
+                    }
+
+                    payload.arguments[field.key] = control.value;
+                });
+
+                submitButton.disabled = true;
+
+                try {
+                    const response = await fetch(actionEndpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const result = await response.json().catch(() => ({}));
+                    if (!response.ok || result.success === false) {
+                        if (result.fieldErrors && result.fieldErrors.length > 0) {
+                            applyFieldErrors(result.fieldErrors);
+                            if (actionSummary) {
+                                actionSummary.textContent = result.message || 'Bitte pruefe die hervorgehobenen Felder.';
+                                actionSummary.classList.remove('d-none');
+                            }
+                            return;
+                        }
+
+                        if (actionSummary) {
+                            actionSummary.textContent = result.message || 'Plugin-Aktion fehlgeschlagen.';
+                            actionSummary.classList.remove('d-none');
+                        } else {
+                            window.alert(result.message || 'Plugin-Aktion fehlgeschlagen.');
+                        }
+
+                        return;
+                    }
+
+                    getModalInstance()?.hide();
+                    window.location.reload();
+                } catch {
+                    if (actionSummary) {
+                        actionSummary.textContent = 'Plugin-Aktion fehlgeschlagen.';
+                        actionSummary.classList.remove('d-none');
+                    } else {
+                        window.alert('Plugin-Aktion fehlgeschlagen.');
+                    }
+                } finally {
+                    submitButton.disabled = false;
+                }
+            }
+
+            document.addEventListener('click', event => {
+                const button = event.target.closest('[data-plugin-member-action]');
+                if (!button) {
+                    return;
+                }
+
+                const schema = JSON.parse(button.getAttribute('data-plugin-action-schema') || '[]');
+                if (schema.length > 0) {
+                    showSchemaAction(button, schema);
+                    return;
+                }
+
+                const confirmMessage = button.getAttribute('data-plugin-action-confirm');
+                if (confirmMessage && !window.confirm(confirmMessage)) {
+                    return;
+                }
+
+                const payload = {
+                    moduleId: button.getAttribute('data-plugin-module-id'),
+                    actionKey: button.getAttribute('data-plugin-action-key'),
+                    arguments: {}
+                };
+                const memberId = button.getAttribute('data-plugin-member-id');
+                if (memberId) {
+                    payload.memberId = Number(memberId);
+                }
+
+                button.disabled = true;
+
+                fetch(actionEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                })
+                    .then(response => response.json().catch(() => ({})).then(result => ({ response, result })))
+                    .then(({ response, result }) => {
+                        if (!response.ok || result.success === false) {
+                            window.alert(result.message || 'Plugin-Aktion fehlgeschlagen.');
+                            return;
+                        }
+
+                        window.location.reload();
+                    })
+                    .catch(() => window.alert('Plugin-Aktion fehlgeschlagen.'))
+                    .finally(() => {
+                        button.disabled = false;
+                    });
+            });
+
+            if (actionForm) {
+                actionForm.addEventListener('submit', submitSchemaAction);
+            }
+        })();
+    </script>
+}

@@ -1,0 +1,28 @@
+@model ClubGear.Models.Member
+@{
+    ViewData["Title"] = "Mitglied erstellen";
+}
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <h1 class="h4 mb-3">Neues Mitglied</h1>
+        <div class="mb-3">
+            <partial name="_FeedbackArea" />
+        </div>
+
+        <form asp-action="Create" method="post">
+            @Html.AntiForgeryToken()
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+            <partial name="_MemberForm" model="Model" />
+
+            <div class="mt-4 d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Speichern</button>
+                <a asp-action="Index" class="btn btn-outline-secondary">Abbrechen</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

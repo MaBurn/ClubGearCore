@@ -98,6 +98,8 @@ See [Core Membership Hierarchy](docs/architecture/core-membership-hierarchy.md) 
 
 ## Local Development
 
+For a fresh setup, start with the [Quickstart](docs/quickstart.md).
+
 Requirements:
 
 - .NET SDK 8.
@@ -144,6 +146,7 @@ See `docs/architecture/runtime-deployment.md` for the detailed runtime and deplo
 - [System Overview](docs/architecture/system-overview.md)
 - [Core Deep Dive](docs/architecture/core-deep-dive.md)
 - [Core Membership Hierarchy](docs/architecture/core-membership-hierarchy.md)
+- [Releases](docs/releases.md)
 - [Runtime and Deployment](docs/architecture/runtime-deployment.md)
 - [Plugin Authoring Guide](docs/architecture/plugin-authoring-guide.md)
 - [Plugin Boundary and Compliance](docs/architecture/plugin-boundary-and-compliance.md)

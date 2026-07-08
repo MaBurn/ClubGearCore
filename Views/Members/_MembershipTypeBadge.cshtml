@@ -1,0 +1,26 @@
+@model ClubGear.Models.Member
+@{
+    var membershipType = Model.MembershipType;
+}
+@if (membershipType is null)
+{
+    <span class="badge bg-light text-dark"><i class="bi bi-question-circle"></i> Nicht zugewiesen</span>
+}
+else
+{
+    var badgeCssClass = membershipType.Key switch
+    {
+        "Verein" => "bg-primary",
+        "Firma" => "bg-secondary",
+        "Standard" => "bg-light text-dark",
+        _ => "bg-info"
+    };
+    var badgeIconClass = membershipType.Key switch
+    {
+        "Verein" => "bi-people-fill",
+        "Firma" => "bi-building",
+        "Standard" => "bi-person",
+        _ => "bi-tag"
+    };
+    <span class="badge @badgeCssClass"><i class="bi @badgeIconClass"></i> @membershipType.Name</span>
+}

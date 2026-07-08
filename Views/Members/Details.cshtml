@@ -1,0 +1,160 @@
+@model ClubGear.Models.Member
+@using ClubGear.Services.Abstractions
+@inject IMemberFeatureService MemberFeatureService
+@functions {
+    private static string FormatMetadataValue(ClubGear.Models.MemberMetadataValue value, IReadOnlyDictionary<int, string> referenceLabels)
+    {
+        if (string.IsNullOrWhiteSpace(value.Value))
+        {
+            return "-";
+        }
+
+        return value.Field!.FieldType switch
+        {
+            ClubGear.Models.MemberMetadataFieldType.Boolean =>
+                string.Equals(value.Value, "true", StringComparison.OrdinalIgnoreCase) ? "Ja" : "Nein",
+            ClubGear.Models.MemberMetadataFieldType.Date =>
+                DateTime.TryParse(value.Value, out var date) ? date.ToString("dd.MM.yyyy") : value.Value,
+            ClubGear.Models.MemberMetadataFieldType.MemberReference =>
+                int.TryParse(value.Value, out var referencedId) && referenceLabels.TryGetValue(referencedId, out var label)
+                    ? label
+                    : "Unbekanntes Mitglied",
+            _ => value.Value
+        };
+    }
+}
+@{
+    ViewData["Title"] = "Mitgliedsdetails";
+    ViewData["MemberHeaderMode"] = "details";
+    ViewData["PluginSlotMode"] = "details";
+    var pluginSlots = ViewData["MemberPluginSlots"] as MemberPluginSlotSnapshot ?? MemberPluginSlotSnapshot.Empty;
+
+    var referencedMemberIds = Model.MetadataValues
+        .Where(v => v.Field is not null && v.Field.FieldType == ClubGear.Models.MemberMetadataFieldType.MemberReference)
+        .Select(v => int.TryParse(v.Value, out var id) ? id : (int?)null)
+        .Where(id => id.HasValue)
+        .Select(id => id!.Value);
+    var referenceLabels = await MemberFeatureService.GetReferenceLabelsAsync(referencedMemberIds);
+}
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="mb-3">
+            <partial name="_HeaderActions" model="Model" />
+        </div>
+
+        <partial name="_PluginSlots" model="pluginSlots" />
+
+        <dl class="row mb-0">
+            <dt class="col-sm-3">Mitgliedsnummer</dt>
+            <dd class="col-sm-9">@Model.MemberNumber</dd>
+
+            <dt class="col-sm-3">Name</dt>
+            <dd class="col-sm-9">@Model.FullName</dd>
+
+            <dt class="col-sm-3">Mitgliedsart</dt>
+            <dd class="col-sm-9">
+                @if (Model.MembershipType is not null)
+                {
+                    <span class="badge bg-primary">@Model.MembershipType.Name</span>
+                }
+                else
+                {
+                    <span class="badge bg-light text-dark">-</span>
+                }
+            </dd>
+
+            <dt class="col-sm-3">Titel</dt>
+            <dd class="col-sm-9">@Model.Title</dd>
+
+            <dt class="col-sm-3">Keycloak-ID</dt>
+            <dd class="col-sm-9">@(Model.OauthID ?? "-")</dd>
+
+            <dt class="col-sm-3">Keycloak-Username</dt>
+            <dd class="col-sm-9">@(Model.KeycloakUsername ?? "-")</dd>
+
+            <dt class="col-sm-3">Verifiziert</dt>
+            <dd class="col-sm-9">@(Model.IsVerified ? "Ja" : "Nein")</dd>
+
+            <dt class="col-sm-3">Geschlecht</dt>
+            <dd class="col-sm-9">@Model.Gender</dd>
+
+            <dt class="col-sm-3">Geburtsdatum</dt>
+            <dd class="col-sm-9">@(Model.DateOfBirth?.ToString("dd.MM.yyyy") ?? "-")</dd>
+
+            <dt class="col-sm-3">E-Mail</dt>
+            <dd class="col-sm-9">@Model.Email</dd>
+
+            <dt class="col-sm-3">Telefon</dt>
+            <dd class="col-sm-9">@Model.PhoneNumber</dd>
+
+            <dt class="col-sm-3">Beigetreten</dt>
+            <dd class="col-sm-9">@Model.JoinedAt.ToLocalTime().ToString("dd.MM.yyyy")</dd>
+
+            <dt class="col-sm-3">Eintritt (Legacy)</dt>
+            <dd class="col-sm-9">@(Model.Joined?.ToLocalTime().ToString("dd.MM.yyyy") ?? "-")</dd>
+
+            <dt class="col-sm-3">Austritt</dt>
+            <dd class="col-sm-9">@(Model.Leaved?.ToLocalTime().ToString("dd.MM.yyyy") ?? "-")</dd>
+
+            <dt class="col-sm-3">Letzte Aenderung</dt>
+            <dd class="col-sm-9">@(Model.LastUpdated?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "-")</dd>
+
+            <dt class="col-sm-3">Status</dt>
+            <dd class="col-sm-9">@(Model.IsActive ? "Aktiv" : "Inaktiv")</dd>
+
+            <dt class="col-sm-3">Statusflags</dt>
+            <dd class="col-sm-9">
+                <span class="badge bg-secondary">@(Model.IsDeceased ? "Verstorben" : "Lebend")</span>
+                <span class="badge bg-info">@(string.Equals(Model.MembershipType?.Key, "Familie", StringComparison.Ordinal) ? "Familie" : "Einzelmitglied")</span>
+                <span class="badge bg-success">@(Model.DataprivacyAccepted ? "Datenschutz ok" : "Datenschutz offen")</span>
+                <span class="badge bg-warning text-dark">@(Model.NewsletterConsent ? "Newsletter ja" : "Newsletter nein")</span>
+            </dd>
+
+            <dt class="col-sm-3">Kommunikation</dt>
+            <dd class="col-sm-9">
+                <span class="badge bg-primary">@(Model.NotifyViaEmail ? "E-Mail" : "Keine E-Mail")</span>
+                <span class="badge bg-dark">@(Model.NotifyViaMatrix ? "Matrix" : "Keine Matrix")</span>
+            </dd>
+
+            <dt class="col-sm-3">Zusatzdaten</dt>
+            <dd class="col-sm-9">
+                @if (Model.MetadataValues.Any(v => v.Field is not null))
+                {
+                    @foreach (var value in Model.MetadataValues.Where(v => v.Field is not null).OrderBy(v => v.Field!.SortOrder))
+                    {
+                        <div><strong>@value.Field!.Label:</strong> @FormatMetadataValue(value, referenceLabels)</div>
+                    }
+                }
+                else
+                {
+                    <div>-</div>
+                }
+                <div><strong>Profilbild:</strong> @(string.IsNullOrWhiteSpace(Model.ProfileImagePath) ? "-" : Model.ProfileImagePath)</div>
+            </dd>
+
+            <dt class="col-sm-3">Adresse</dt>
+            <dd class="col-sm-9">
+                @if (Model.Addresses.Count == 0)
+                {
+                    <span>-</span>
+                }
+                else
+                {
+                    <ul class="mb-0 ps-3">
+                        @foreach (var address in Model.Addresses.OrderByDescending(a => a.IsDefault))
+                        {
+                            <li>
+                                @if (address.IsDefault)
+                                {
+                                    <strong>Hauptadresse:</strong>
+                                }
+                                @address.Street, @address.PostalCode @address.City, @address.Country
+                            </li>
+                        }
+                    </ul>
+                }
+            </dd>
+        </dl>
+    </div>
+</div>

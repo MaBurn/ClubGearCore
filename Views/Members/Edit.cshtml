@@ -1,0 +1,524 @@
+@model ClubGear.Models.Member
+@using ClubGear.Services.Abstractions
+@using Microsoft.AspNetCore.Mvc.Rendering
+@{
+    var isModalRequest = string.Equals(Context.Request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase);
+    if (isModalRequest)
+    {
+        Layout = null;
+    }
+
+    var addresses = Model.Addresses?.ToList() ?? new List<ClubGear.Models.MemberAddress>();
+    if (addresses.Count == 0)
+    {
+        addresses.Add(new ClubGear.Models.MemberAddress { IsDefault = true });
+    }
+
+    ViewData["Title"] = "Mitglied bearbeiten";
+    ViewData["MemberHeaderMode"] = "edit";
+    ViewData["PluginSlotMode"] = "edit-cards";
+    ViewData["PluginActionsVisible"] = true;
+    var pluginSlots = ViewData["MemberPluginSlots"] as MemberPluginSlotSnapshot ?? MemberPluginSlotSnapshot.Empty;
+    var membershipTypes = (ViewData["MembershipTypes"] as IReadOnlyList<ClubGear.Models.MembershipType>) ?? new List<ClubGear.Models.MembershipType>();
+    var membershipTypeKey = Model.MembershipType?.Key;
+}
+
+<div class="member-edit-shell @(isModalRequest ? "member-edit-shell--modal" : string.Empty)">
+    @if (!isModalRequest)
+    {
+        <div class="mb-3">
+            <partial name="_FeedbackArea" />
+        </div>
+    }
+
+    <form asp-action="Edit" asp-route-id="@Model.Id" method="post" id="editMemberForm" class="member-edit-form">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="Id" />
+        <input type="hidden" asp-for="JoinedAt" />
+        <input type="hidden" asp-for="ApplicationUserId" />
+
+        <div class="card shadow-sm mb-4 member-edit-profile-header">
+            <div class="card-body p-4">
+                <div class="d-flex flex-column flex-lg-row gap-4 align-items-start">
+                    <div class="member-edit-avatar-wrap text-center">
+                        @if (!string.IsNullOrWhiteSpace(Model.ProfileImagePath))
+                        {
+                            <img src="@Model.ProfileImagePath" alt="@Model.FullName" class="member-edit-avatar rounded-circle shadow" />
+                        }
+                        else
+                        {
+                            <div class="member-edit-avatar rounded-circle shadow d-flex align-items-center justify-content-center bg-light">
+                                <i class="bi bi-person-circle text-secondary member-edit-avatar-icon"></i>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="flex-grow-1">
+                        <div class="d-flex flex-column flex-md-row justify-content-between gap-3">
+                            <div>
+                                <h2 class="h4 mb-1">@Model.FullName</h2>
+                                <div class="text-muted small mb-2">
+                                    <i class="bi bi-hash"></i> Mitgliedsnummer: <strong>@Model.MemberNumber</strong>
+                                </div>
+                                <div class="d-flex flex-wrap gap-2">
+                                    @if (string.Equals(membershipTypeKey, "Firma", StringComparison.Ordinal))
+                                    {
+                                        <span class="badge bg-secondary"><i class="bi bi-building me-1"></i>Firma</span>
+                                    }
+                                    else if (string.Equals(membershipTypeKey, "Verein", StringComparison.Ordinal))
+                                    {
+                                        <span class="badge bg-primary"><i class="bi bi-people-fill me-1"></i>Verein</span>
+                                    }
+                                    else if (!string.IsNullOrEmpty(membershipTypeKey) && !string.Equals(membershipTypeKey, "Standard", StringComparison.Ordinal))
+                                    {
+                                        <span class="badge bg-info"><i class="bi bi-tag me-1"></i>@Model.MembershipType!.Name</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-light text-dark"><i class="bi bi-person me-1"></i>Privat</span>
+                                    }
+
+                                    @if (Model.IsVerified)
+                                    {
+                                        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Verifiziert</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-circle me-1"></i>Nicht verifiziert</span>
+                                    }
+
+                                    @if (Model.IsDeceased)
+                                    {
+                                        <span class="badge bg-dark">Verstorben</span>
+                                    }
+
+                                    @if (Model.Leaved.HasValue)
+                                    {
+                                        <span class="badge bg-warning text-dark"><i class="bi bi-box-arrow-right me-1"></i>Ausgetreten</span>
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="member-edit-profile-url">
+                                <label asp-for="ProfileImagePath" class="form-label mb-1">Profilbild-URL</label>
+                                <input asp-for="ProfileImagePath" class="form-control form-control-sm" placeholder="/images/member.png" />
+                                <span asp-validation-for="ProfileImagePath" class="text-danger"></span>
+                                <div class="form-text">Upload ist im ClubGear-Stand noch nicht verfuegbar.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <partial name="_HeaderActions" model="Model" />
+        </div>
+
+        <div class="d-md-none mb-3">
+            <select class="form-select" id="mobileEditTabSelect" onchange="switchEditTab(this.value)">
+                <option value="personal">Persoenliche Daten</option>
+                <option value="contact">Kontakt</option>
+                <option value="addresses">Adressen</option>
+                <option value="membership">Mitgliedschaft</option>
+                <option value="extensions">Erweiterungen</option>
+            </select>
+        </div>
+
+        <ul class="nav nav-tabs nav-fill mb-3 d-none d-md-flex" id="editMemberTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="personal-tab" data-bs-toggle="tab" data-bs-target="#personal" type="button" role="tab">
+                    <i class="bi bi-person me-1"></i>Persoenliche Daten
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="contact-tab" data-bs-toggle="tab" data-bs-target="#contact" type="button" role="tab">
+                    <i class="bi bi-telephone me-1"></i>Kontakt
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="addresses-tab" data-bs-toggle="tab" data-bs-target="#addresses" type="button" role="tab">
+                    <i class="bi bi-house me-1"></i>Adressen
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="membership-tab" data-bs-toggle="tab" data-bs-target="#membership" type="button" role="tab">
+                    <i class="bi bi-card-checklist me-1"></i>Mitgliedschaft
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="extensions-tab" data-bs-toggle="tab" data-bs-target="#extensions" type="button" role="tab">
+                    <i class="bi bi-sliders me-1"></i>Erweiterungen
+                </button>
+            </li>
+        </ul>
+
+        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+        <div class="tab-content member-edit-tab-content" id="editMemberTabContent">
+            <div class="tab-pane fade show active" id="personal" role="tabpanel">
+                <div class="card shadow-sm mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3"><i class="bi bi-person-fill text-primary me-1"></i>Grunddaten</h5>
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label asp-for="MemberNumber" class="form-label">Mitgliedsnummer</label>
+                                <input asp-for="MemberNumber" class="form-control"
+                                       data-val="true"
+                                       data-val-required="Mitgliedsnummer darf nicht leer sein." />
+                                <span asp-validation-for="MemberNumber" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="Title" class="form-label">Titel</label>
+                                <input asp-for="Title" class="form-control" />
+                                <span asp-validation-for="Title" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="FirstName" class="form-label">Vorname</label>
+                                <input asp-for="FirstName" class="form-control" />
+                                <span asp-validation-for="FirstName" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="LastName" class="form-label">Nachname</label>
+                                <input asp-for="LastName" class="form-control" />
+                                <span asp-validation-for="LastName" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="Gender" class="form-label">Geschlecht</label>
+                                <input asp-for="Gender" class="form-control" />
+                                <span asp-validation-for="Gender" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="DateOfBirth" class="form-label">Geburtsdatum</label>
+                                <input asp-for="DateOfBirth" class="form-control" type="date" />
+                                <span asp-validation-for="DateOfBirth" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="PendingEmail" class="form-label">Pending E-Mail</label>
+                                <input asp-for="PendingEmail" class="form-control" type="email" />
+                                <span asp-validation-for="PendingEmail" class="text-danger"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="contact" role="tabpanel">
+                <div class="card shadow-sm mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3"><i class="bi bi-envelope-at-fill text-primary me-1"></i>Kontaktkanal</h5>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label asp-for="Email" class="form-label">E-Mail</label>
+                                <input asp-for="Email" class="form-control" type="email" />
+                                <span asp-validation-for="Email" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="PhoneNumber" class="form-label">Telefon</label>
+                                <input asp-for="PhoneNumber" class="form-control" />
+                                <span asp-validation-for="PhoneNumber" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="OauthID" class="form-label">OAuth ID</label>
+                                <input asp-for="OauthID" class="form-control" />
+                                <span asp-validation-for="OauthID" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="OAuthUserName" class="form-label">OAuth Benutzername</label>
+                                <input asp-for="OAuthUserName" class="form-control" />
+                                <span asp-validation-for="OAuthUserName" class="text-danger"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="addresses" role="tabpanel">
+                <div class="card shadow-sm mb-3">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="card-title mb-0"><i class="bi bi-house-fill text-primary me-1"></i>Adressen</h5>
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="addAddressRow()">
+                                <i class="bi bi-plus-circle me-1"></i>Adresse hinzufuegen
+                            </button>
+                        </div>
+
+                        <div id="memberAddressesContainer" class="row g-3">
+                            @for (var i = 0; i < addresses.Count; i++)
+                            {
+                                var address = addresses[i];
+                                <div class="col-12 member-address-row" data-index="@i" id="addressRow_@i">
+                                    <div class="card border-light-subtle shadow-sm">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                                <h6 class="mb-0">Adresse <span class="member-address-label">@(@i + 1)</span></h6>
+                                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeAddressRow(@i)">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+
+                                            <input type="hidden" name="Addresses[@i].Id" value="@address.Id" />
+
+                                            <div class="row g-2">
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Strasse</label>
+                                                    <input class="form-control" name="Addresses[@i].Street" value="@address.Street" />
+                                                </div>
+                                                <div class="col-md-2">
+                                                    <label class="form-label">PLZ</label>
+                                                    <input class="form-control" name="Addresses[@i].PostalCode" value="@address.PostalCode" />
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Stadt</label>
+                                                    <input class="form-control" name="Addresses[@i].City" value="@address.City" />
+                                                </div>
+                                                <div class="col-md-1">
+                                                    <label class="form-label">Land</label>
+                                                    <input class="form-control" name="Addresses[@i].Country" value="@address.Country" />
+                                                </div>
+                                            </div>
+
+                                            <div class="form-check mt-3">
+                                                <input type="hidden" name="Addresses[@i].IsDefault" value="false" />
+                                                <input type="checkbox" class="form-check-input" id="AddressDefault_@i" name="Addresses[@i].IsDefault" value="true" @(address.IsDefault ? "checked" : null) />
+                                                <label class="form-check-label" for="AddressDefault_@i">
+                                                    Als Hauptadresse markieren
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="membership" role="tabpanel">
+                <div class="card shadow-sm mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3"><i class="bi bi-card-checklist text-primary me-1"></i>Mitgliedschaftsdaten</h5>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label asp-for="Joined" class="form-label">Beigetreten am</label>
+                                <input asp-for="Joined" class="form-control" type="date" />
+                                <span asp-validation-for="Joined" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="Leaved" class="form-label">Ausgetreten am</label>
+                                <input asp-for="Leaved" class="form-control" type="date" />
+                                <span asp-validation-for="Leaved" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="MembershipTypeId" class="form-label">Mitgliedsart</label>
+                                <select asp-for="MembershipTypeId" class="form-select member-type-toggle" id="MembershipTypeId"
+                                        asp-items="@(new SelectList(membershipTypes, "Id", "Name"))">
+                                    <option value="">-- Keine --</option>
+                                </select>
+                                <span asp-validation-for="MembershipTypeId" class="text-danger"></span>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-check mt-2">
+                                    <input asp-for="IsActive" class="form-check-input" />
+                                    <label asp-for="IsActive" class="form-check-label">Aktiv</label>
+                                </div>
+                                <div class="form-check mt-2">
+                                    <input asp-for="IsVerified" class="form-check-input" />
+                                    <label asp-for="IsVerified" class="form-check-label">Verifiziert</label>
+                                </div>
+                                <div class="form-check mt-2">
+                                    <input asp-for="IsDeceased" class="form-check-input" />
+                                    <label asp-for="IsDeceased" class="form-check-label">Verstorben</label>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <partial name="_MemberMetadataFields" model="Model" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3"><i class="bi bi-shield-check text-primary me-1"></i>Datenschutz und Benachrichtigung</h5>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input asp-for="DataprivacyAccepted" class="form-check-input" />
+                                    <label asp-for="DataprivacyAccepted" class="form-check-label">Datenschutz akzeptiert</label>
+                                </div>
+                                <div class="form-check mt-2">
+                                    <input asp-for="NewsletterConsent" class="form-check-input" />
+                                    <label asp-for="NewsletterConsent" class="form-check-label">Newsletter-Einwilligung</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input asp-for="NotifyViaEmail" class="form-check-input" />
+                                    <label asp-for="NotifyViaEmail" class="form-check-label">Benachrichtigung per E-Mail</label>
+                                </div>
+                                <div class="form-check mt-2">
+                                    <input asp-for="NotifyViaMatrix" class="form-check-input" />
+                                    <label asp-for="NotifyViaMatrix" class="form-check-label">Benachrichtigung via Matrix</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="extensions" role="tabpanel">
+                <div class="card shadow-sm mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3"><i class="bi bi-cpu text-primary me-1"></i>Erweiterte Module</h5>
+                        <div class="alert alert-info mb-3">
+                            Diese ClubGear-Instanz bildet das Originallayout bereits aehnlich nach, aber einige Original-Module sind hier noch nicht implementiert.
+                        </div>
+                        <partial name="_PluginSlots" model="pluginSlots" />
+                        <div class="row g-2 small">
+                            <div class="col-md-6"><span class="badge bg-light text-dark">Nicht verfuegbar:</span> Zahlungen</div>
+                            <div class="col-md-6"><span class="badge bg-light text-dark">Nicht verfuegbar:</span> Bankkonten</div>
+                            <div class="col-md-6"><span class="badge bg-light text-dark">Nicht verfuegbar:</span> GPS-Tracker</div>
+                            <div class="col-md-6"><span class="badge bg-light text-dark">Nicht verfuegbar:</span> Keycloak-Gruppen</div>
+                            <div class="col-md-6"><span class="badge bg-light text-dark">Nicht verfuegbar:</span> Newsletter-Zuordnung</div>
+                            <div class="col-md-6"><span class="badge bg-light text-dark">Nicht verfuegbar:</span> Kommunikationsprodukte</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4 d-flex gap-2 flex-wrap justify-content-end border-top pt-3">
+            @if (!isModalRequest)
+            {
+                <a asp-action="Index" class="btn btn-outline-secondary">Abbrechen</a>
+            }
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check-circle me-1"></i>Speichern
+            </button>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        function switchEditTab(tabId) {
+            var tabButton = document.getElementById(tabId + '-tab');
+            if (!tabButton || typeof bootstrap === 'undefined') {
+                return;
+            }
+
+            var tab = new bootstrap.Tab(tabButton);
+            tab.show();
+        }
+
+        function syncMobileTabSelect(targetId) {
+            var mobileSelect = document.getElementById('mobileEditTabSelect');
+            if (!mobileSelect) {
+                return;
+            }
+
+            mobileSelect.value = targetId;
+        }
+
+        function addAddressRow() {
+            var container = document.getElementById('memberAddressesContainer');
+            if (!container) {
+                return;
+            }
+
+            var index = container.querySelectorAll('.member-address-row').length;
+            var row = document.createElement('div');
+            row.className = 'col-12 member-address-row';
+            row.dataset.index = index;
+            row.id = 'addressRow_' + index;
+            row.innerHTML =
+                '<div class="card border-light-subtle shadow-sm">'
+                + '<div class="card-body">'
+                + '<div class="d-flex justify-content-between align-items-center mb-3">'
+                + '<h6 class="mb-0">Adresse <span class="member-address-label">' + (index + 1) + '</span></h6>'
+                + '<button type="button" class="btn btn-outline-danger btn-sm" onclick="removeAddressRow(' + index + ')"><i class="bi bi-trash"></i></button>'
+                + '</div>'
+                + '<input type="hidden" name="Addresses[' + index + '].Id" value="0" />'
+                + '<div class="row g-2">'
+                + '<div class="col-md-6"><label class="form-label">Strasse</label><input class="form-control" name="Addresses[' + index + '].Street" /></div>'
+                + '<div class="col-md-2"><label class="form-label">PLZ</label><input class="form-control" name="Addresses[' + index + '].PostalCode" /></div>'
+                + '<div class="col-md-3"><label class="form-label">Stadt</label><input class="form-control" name="Addresses[' + index + '].City" /></div>'
+                + '<div class="col-md-1"><label class="form-label">Land</label><input class="form-control" name="Addresses[' + index + '].Country" /></div>'
+                + '</div>'
+                + '<div class="form-check mt-3">'
+                + '<input type="hidden" name="Addresses[' + index + '].IsDefault" value="false" />'
+                + '<input type="checkbox" class="form-check-input" id="AddressDefault_' + index + '" name="Addresses[' + index + '].IsDefault" value="true" />'
+                + '<label class="form-check-label" for="AddressDefault_' + index + '">Als Hauptadresse markieren</label>'
+                + '</div>'
+                + '</div>'
+                + '</div>';
+
+            container.appendChild(row);
+        }
+
+        function removeAddressRow(index) {
+            var row = document.getElementById('addressRow_' + index);
+            if (!row) {
+                return;
+            }
+
+            row.remove();
+            reindexAddressRows();
+
+            var container = document.getElementById('memberAddressesContainer');
+            if (container && container.querySelectorAll('.member-address-row').length === 0) {
+                addAddressRow();
+            }
+        }
+
+        function reindexAddressRows() {
+            var rows = document.querySelectorAll('#memberAddressesContainer .member-address-row');
+            rows.forEach(function (row, idx) {
+                row.dataset.index = idx;
+                row.id = 'addressRow_' + idx;
+
+                var label = row.querySelector('.member-address-label');
+                if (label) {
+                    label.textContent = (idx + 1).toString();
+                }
+
+                row.querySelectorAll('input').forEach(function (input) {
+                    if (input.name) {
+                        input.name = input.name.replace(/Addresses\[\d+\]/, 'Addresses[' + idx + ']');
+                    }
+
+                    if (input.id && input.id.indexOf('AddressDefault_') === 0) {
+                        input.id = 'AddressDefault_' + idx;
+                    }
+                });
+
+                var checkboxLabel = row.querySelector('label[for^="AddressDefault_"]');
+                if (checkboxLabel) {
+                    checkboxLabel.setAttribute('for', 'AddressDefault_' + idx);
+                }
+
+                var removeButton = row.querySelector('button.btn-outline-danger');
+                if (removeButton) {
+                    removeButton.setAttribute('onclick', 'removeAddressRow(' + idx + ')');
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('#editMemberTabs button[data-bs-toggle="tab"]').forEach(function (button) {
+                button.addEventListener('shown.bs.tab', function (event) {
+                    var target = event.target.getAttribute('data-bs-target');
+                    if (!target) {
+                        return;
+                    }
+
+                    syncMobileTabSelect(target.substring(1));
+                });
+            });
+        });
+    </script>
+}

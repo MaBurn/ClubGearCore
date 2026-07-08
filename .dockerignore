@@ -1,0 +1,28 @@
+**/bin/
+**/obj/
+
+# Local databases — never bake dev data into the image
+*.db
+*.db-shm
+*.db-wal
+
+# Dev-only config overrides
+appsettings.Development.json
+
+# Git internals
+.git/
+.gitmodules
+
+# IDE and OS noise
+.vs/
+.vscode/
+**/.DS_Store
+*.user
+
+# Docker files themselves (not needed inside the image)
+docker-compose*.yml
+Dockerfile*
+
+# Plugin source — only the Contracts project is compiled into the app;
+# plugin ZIPs are uploaded at runtime through the admin UI
+plugins/

@@ -1,0 +1,82 @@
+@model IReadOnlyList<ClubGear.Services.Abstractions.ExternalProviderInfo>
+@{
+    ViewData["Title"] = "Externe Anmeldung";
+}
+
+<div class="cg-page cg-page--external-login-admin" data-page="external-login-admin">
+    <section class="cg-page-section cg-page-header d-flex flex-wrap justify-content-between align-items-start gap-3">
+        <div>
+            <h1 class="h3 mb-1">Externe Anmeldung</h1>
+            <p class="text-muted mb-0">Identity-Provider-Plugins konfigurieren und aktivieren.</p>
+        </div>
+    </section>
+
+    <section class="cg-page-section">
+        @if (!Model.Any())
+        {
+            <div class="alert alert-info">
+                Keine Identity-Provider-Plugins geladen. Installieren Sie ein Plugin, das einen Identity Provider bereitstellt.
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">Provider</th>
+                            <th scope="col">Schluessel</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var provider in Model)
+                        {
+                            <tr data-provider="@provider.ProviderKey">
+                                <td>@provider.DisplayName</td>
+                                <td><code>@provider.ProviderKey</code></td>
+                                <td>
+                                    @if (provider.IsEnabled)
+                                    {
+                                        <span class="badge bg-success">Aktiviert</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">Deaktiviert</span>
+                                    }
+                                </td>
+                                <td class="d-flex gap-2 flex-wrap">
+                                    <a href="@Url.Action("Configure", "ExternalLoginAdmin", new { provider = provider.ProviderKey })"
+                                       class="btn btn-sm btn-outline-primary">
+                                        Konfigurieren
+                                    </a>
+
+                                    <form method="post"
+                                          asp-action="Activate"
+                                          asp-controller="ExternalLoginAdmin"
+                                          asp-route-provider="@provider.ProviderKey"
+                                          asp-route-enabled="@(!provider.IsEnabled)">
+                                        @Html.AntiForgeryToken()
+                                        @if (provider.IsEnabled)
+                                        {
+                                            <button type="submit" class="btn btn-sm btn-outline-warning">
+                                                Deaktivieren
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button type="submit" class="btn btn-sm btn-outline-success">
+                                                Aktivieren
+                                            </button>
+                                        }
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>

@@ -1,0 +1,537 @@
+@model IEnumerable<ClubGear.Models.Member>
+@using ClubGear.Models.MemberFilters
+@using ClubGear.Models
+@{
+    var searchFilter = ViewData["SearchFilter"] as MemberSearchFilterViewModel ?? new MemberSearchFilterViewModel();
+    var listSegments = ViewData["MemberListSegments"] as MemberListSegmentsViewModel
+        ?? MemberListSegmentsViewModel.FromMembers(Model);
+    var membershipTypes = ViewData["MembershipTypes"] as IReadOnlyList<MembershipType> ?? new List<MembershipType>();
+    var allMembers = Model.ToList();
+    var hierarchy = ViewData["MemberHierarchy"] as MemberHierarchyViewModel
+        ?? MemberHierarchyViewModel.FromMembers(allMembers);
+    // Render rows in hierarchy order (each container parent immediately followed by its
+    // indented sub-members), split into the existing verified/unverified sections. Each member
+    // appears exactly once because the hierarchy stream is already de-duplicated.
+    var verifiedRows = hierarchy.Rows.Where(r => r.Member.IsVerified).ToList();
+    var unverifiedRows = hierarchy.Rows.Where(r => !r.Member.IsVerified).ToList();
+    var birthdayMembers = allMembers
+        .Where(m => m.DateOfBirth.HasValue
+            && m.DateOfBirth.Value.Month == DateTime.Today.Month
+            && m.DateOfBirth.Value.Day == DateTime.Today.Day)
+        .OrderBy(m => m.LastName)
+        .ThenBy(m => m.FirstName)
+        .ToList();
+
+    ViewData["Title"] = "Mitgliederverwaltung";
+}
+
+<div class="cg-page cg-page--members-index">
+    <section id="feedbackArea" class="cg-page-section">
+        <partial name="_FeedbackArea" />
+    </section>
+
+    <section class="cg-page-section">
+        <div id="reloadNotice" class="members-reload-notice" style="display:none;">
+            <div class="alert alert-info alert-dismissible fade show shadow" role="alert">
+                <strong>Es gibt Aenderungen.</strong> <a href="#" id="reloadBtn" class="alert-link">Reload?</a>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Schliessen"></button>
+            </div>
+        </div>
+
+        <div class="container mt-5 members-original-layout">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+                <h2 class="mb-0">@ViewData["Title"]</h2>
+                <div class="d-flex flex-wrap gap-2">
+                    <a asp-action="Create" class="btn btn-primary"><i class="bi bi-person-plus me-1"></i>Neues Mitglied</a>
+                    <a asp-action="Import" class="btn btn-outline-primary"><i class="bi bi-upload me-1"></i>CSV-Import</a>
+                </div>
+            </div>
+
+            <form id="hiddenAntiForgeryForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="Search" value="@searchFilter.Search" />
+                <input type="hidden" name="Status" value="@searchFilter.Status" />
+            </form>
+
+    @if (birthdayMembers.Count > 0)
+    {
+        <div class="alert alert-success shadow-sm mb-4 members-birthday-banner">
+            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-start gap-3">
+                <div>
+                    <i class="bi bi-gift-fill me-2"></i>
+                    <strong>Herzlichen Glueckwunsch!</strong>
+                    Heute haben folgende Mitglieder Geburtstag:
+                </div>
+                <button type="button" class="btn btn-success btn-sm" id="send-all-birthday-greetings-btn">
+                    <i class="bi bi-send-heart me-1"></i>Geburtstagsgruesse senden
+                </button>
+            </div>
+            <ul class="mb-0 mt-2">
+                @foreach (var birthdayMember in birthdayMembers)
+                {
+                    <li data-birthday-member-id="@birthdayMember.Id">
+                        <span class="fw-bold">@birthdayMember.FullName</span>
+                        (@birthdayMember.MemberNumber)
+                    </li>
+                }
+            </ul>
+        </div>
+    }
+
+    <div class="row g-3 align-items-center mb-3">
+        <div class="col-md-5 col-12">
+            <input id="searchInput" type="text" class="form-control" placeholder="Mitglieder suchen..." value="@searchFilter.Search">
+        </div>
+        <div class="col-md-3 col-6">
+            <select id="typeFilter" class="form-select" onchange="filterMembers()">
+                <option value="all">Alle Typen</option>
+                @foreach (var type in membershipTypes)
+                {
+                    <option value="@type.Key">@type.Name</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-4 col-12">
+            <div class="dropdown">
+                <button class="btn btn-success dropdown-toggle w-100" type="button" id="bulkActionsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-lightning-charge me-2"></i>Bulk-Aktionen
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="bulkActionsDropdown">
+                    <li><h6 class="dropdown-header"><i class="bi bi-person-x me-2"></i>Mitgliederverwaltung</h6></li>
+                    <li><a class="dropdown-item text-danger" href="@Url.Action("BulkDeleteTerminatedMembers", "Members")">
+                        <i class="bi bi-trash me-2"></i>Gekuendigte Mitglieder loeschen
+                    </a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-warning bg-opacity-25 d-flex align-items-center justify-content-between"
+             role="button"
+             style="cursor:pointer; user-select:none;"
+             data-bs-toggle="collapse" data-bs-target="#unverifiedCardBody" aria-expanded="true" aria-controls="unverifiedCardBody"
+             onclick="toggleUnverifiedArrow()">
+            <span class="fw-semibold">Nicht-verifizierte Mitglieder</span>
+            <span id="unverifiedArrow" class="bi bi-chevron-up fs-4"></span>
+        </div>
+        <div id="unverifiedCardBody" class="collapse show">
+            <div class="table-responsive d-none d-md-block">
+                <table class="table table-striped align-middle mb-0 member-table" id="unverifiedMembersTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 40px;">
+                                <input type="checkbox" class="form-check-input" id="selectAllUnverified" onchange="toggleSelectAll('unverified')">
+                            </th>
+                            <th style="width: 60px;">Bild</th>
+                            <th>Mitglieds-Nr.</th>
+                            <th>Status</th>
+                            <th>Typ</th>
+                            <th>Name</th>
+                            <th>E-Mail</th>
+                            <th>Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in unverifiedRows)
+                        {
+                            var member = row.Member;
+                            <tr data-group-id="@row.GroupId" data-group-type="@row.GroupType" data-member-type="@(member.MembershipType?.Key ?? "unassigned")" data-member-id="@member.Id" data-depth="@row.Depth" class="@(row.Depth > 0 ? "member-submember-row" : null)">
+                                <td><input type="checkbox" class="form-check-input member-checkbox" value="@member.Id" data-table="unverified"></td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(member.ProfileImagePath))
+                                    {
+                                        <img src="@member.ProfileImagePath" alt="@member.FullName" class="rounded-circle" style="width:40px; height:40px; object-fit:cover;" />
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-person-circle" style="font-size:40px; color:#ccc;"></i>
+                                    }
+                                </td>
+                                <td>@member.MemberNumber</td>
+                                <td><span class="text-danger" title="Nicht verifiziert">!</span></td>
+                                <td>
+                                    <partial name="_MembershipTypeBadge" model="member" />
+                                </td>
+                                <td style="@(row.Depth > 0 ? "padding-left: 2.5rem;" : null)">
+                                    @if (row.Depth > 0 && !string.IsNullOrWhiteSpace(row.GroupLabel))
+                                    {
+                                        <span class="badge bg-secondary me-2 member-submember-label">@row.GroupLabel</span>
+                                    }
+                                    @member.FullName
+                                </td>
+                                <td>@(member.Email ?? "")</td>
+                                <td>
+                                    <button class="btn btn-warning btn-sm mb-1" data-bs-toggle="modal" data-bs-target="#editMemberModal" onclick="loadMemberEdit(@member.Id)">Bearbeiten</button>
+                                    <button class="btn btn-success btn-sm mb-1" onclick="verifyMember(@member.Id)">Verifizieren</button>
+                                    <button class="btn btn-danger btn-sm mb-1" onclick="deleteMember(@member.Id)">Loeschen</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="d-block d-md-none p-2">
+                @foreach (var row in unverifiedRows)
+                {
+                    var member = row.Member;
+                    <div class="card mb-3 @(row.Depth > 0 ? "member-submember-row" : null)" data-group-id="@row.GroupId" data-group-type="@row.GroupType" data-member-type="@(member.MembershipType?.Key ?? "unassigned")" data-depth="@row.Depth" style="@(row.Depth > 0 ? "margin-left: 1.5rem;" : null)">
+                        <div class="card-body py-2 px-3">
+                            <div class="d-flex align-items-center mb-2">
+                                @if (!string.IsNullOrEmpty(member.ProfileImagePath))
+                                {
+                                    <img src="@member.ProfileImagePath" alt="@member.FullName" class="rounded-circle me-2" style="width:50px; height:50px; object-fit:cover;" />
+                                }
+                                else
+                                {
+                                    <i class="bi bi-person-circle me-2" style="font-size:50px; color:#ccc;"></i>
+                                }
+                                <div>
+                                    @if (row.Depth > 0 && !string.IsNullOrWhiteSpace(row.GroupLabel))
+                                    {
+                                        <span class="badge bg-secondary me-2 member-submember-label">@row.GroupLabel</span>
+                                    }
+                                    <strong>@member.FullName</strong>
+                                    <div class="small text-muted">@member.MemberNumber</div>
+                                </div>
+                            </div>
+                            <div><strong>Mitglieds-Nr:</strong> @member.MemberNumber</div>
+                            <div><strong>E-Mail:</strong> @(member.Email ?? "-")</div>
+                            <div class="mt-2">
+                                <button class="btn btn-warning btn-sm w-100 mb-1" data-bs-toggle="modal" data-bs-target="#editMemberModal" onclick="loadMemberEdit(@member.Id)">Bearbeiten</button>
+                                <button class="btn btn-success btn-sm w-100 mb-1" onclick="verifyMember(@member.Id)">Verifizieren</button>
+                                <button class="btn btn-danger btn-sm w-100" onclick="deleteMember(@member.Id)">Loeschen</button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-success bg-opacity-10">
+            <h5 class="mb-0">Verifizierte Mitglieder</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive d-none d-md-block">
+                <table class="table table-striped align-middle mb-0 member-table" id="verifiedMembersTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 40px;">
+                                <input type="checkbox" class="form-check-input" id="selectAllVerified" onchange="toggleSelectAll('verified')">
+                            </th>
+                            <th style="width: 60px;">Bild</th>
+                            <th>Mitglieds-Nr.</th>
+                            <th>Status</th>
+                            <th>Typ</th>
+                            <th>Name</th>
+                            <th>E-Mail</th>
+                            <th>Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in verifiedRows)
+                        {
+                            var member = row.Member;
+                            <tr data-group-id="@row.GroupId" data-group-type="@row.GroupType" data-member-type="@(member.MembershipType?.Key ?? "unassigned")" data-member-id="@member.Id" data-depth="@row.Depth" class="@(row.Depth > 0 ? "member-submember-row" : null)">
+                                <td><input type="checkbox" class="form-check-input member-checkbox" value="@member.Id" data-table="verified"></td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(member.ProfileImagePath))
+                                    {
+                                        <img src="@member.ProfileImagePath" alt="@member.FullName" class="rounded-circle" style="width:40px; height:40px; object-fit:cover;" />
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-person-circle" style="font-size:40px; color:#ccc;"></i>
+                                    }
+                                </td>
+                                <td>@member.MemberNumber</td>
+                                <td>
+                                    <span class="text-success" title="Verifiziert">&#10003;</span>
+                                    @if (member.IsDeceased)
+                                    { <span class="text-dark ms-1" title="Verstorben">&#8224;</span> }
+                                    @if (member.Leaved.HasValue)
+                                    { <span class="text-danger ms-1" title="Ausgetreten am @member.Leaved.Value.ToString("dd.MM.yyyy")">X</span> }
+                                </td>
+                                <td>
+                                    <partial name="_MembershipTypeBadge" model="member" />
+                                </td>
+                                <td style="@(row.Depth > 0 ? "padding-left: 2.5rem;" : null)">
+                                    @if (row.Depth > 0 && !string.IsNullOrWhiteSpace(row.GroupLabel))
+                                    {
+                                        <span class="badge bg-secondary me-2 member-submember-label">@row.GroupLabel</span>
+                                    }
+                                    @member.FullName
+                                </td>
+                                <td>@(member.Email ?? "")</td>
+                                <td>
+                                    <button class="btn btn-warning btn-sm mb-1" data-bs-toggle="modal" data-bs-target="#editMemberModal" onclick="loadMemberEdit(@member.Id)">Bearbeiten</button>
+                                    <button class="btn btn-danger btn-sm mb-1" onclick="deleteMember(@member.Id)">Loeschen</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="d-block d-md-none p-2">
+                @foreach (var row in verifiedRows)
+                {
+                    var member = row.Member;
+                    <div class="card mb-3 @(row.Depth > 0 ? "member-submember-row" : null)" data-group-id="@row.GroupId" data-group-type="@row.GroupType" data-member-type="@(member.MembershipType?.Key ?? "unassigned")" data-depth="@row.Depth" style="@(row.Depth > 0 ? "margin-left: 1.5rem;" : null)">
+                        <div class="card-body py-2 px-3">
+                            <div class="d-flex align-items-center mb-2">
+                                @if (!string.IsNullOrEmpty(member.ProfileImagePath))
+                                {
+                                    <img src="@member.ProfileImagePath" alt="@member.FullName" class="rounded-circle me-2" style="width:50px; height:50px; object-fit:cover;" />
+                                }
+                                else
+                                {
+                                    <i class="bi bi-person-circle me-2" style="font-size:50px; color:#ccc;"></i>
+                                }
+                                <div>
+                                    @if (row.Depth > 0 && !string.IsNullOrWhiteSpace(row.GroupLabel))
+                                    {
+                                        <span class="badge bg-secondary me-2 member-submember-label">@row.GroupLabel</span>
+                                    }
+                                    <strong>@member.FullName</strong>
+                                    <div class="small text-muted">@member.MemberNumber</div>
+                                </div>
+                            </div>
+                            <div><strong>Mitglieds-Nr:</strong> @member.MemberNumber</div>
+                            <div><strong>E-Mail:</strong> @(member.Email ?? "-")</div>
+                            <div class="mt-2">
+                                <button class="btn btn-warning btn-sm w-100 mb-1" data-bs-toggle="modal" data-bs-target="#editMemberModal" onclick="loadMemberEdit(@member.Id)">Bearbeiten</button>
+                                <button class="btn btn-danger btn-sm w-100" onclick="deleteMember(@member.Id)">Loeschen</button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editMemberModal" tabindex="-1" aria-labelledby="editMemberModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl" style="max-width: 65vw;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editMemberModalLabel">Mitglied bearbeiten</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schliessen"></button>
+                </div>
+                <div class="modal-body" id="editMemberModalContent"></div>
+            </div>
+        </div>
+    </div>
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/member-index-filter.js" asp-append-version="true"></script>
+    <script>
+        function toggleUnverifiedArrow() {
+            setTimeout(function () {
+                var body = document.getElementById('unverifiedCardBody');
+                var arrow = document.getElementById('unverifiedArrow');
+                if (!body || !arrow) return;
+
+                arrow.className = body.classList.contains('show')
+                    ? 'bi bi-chevron-up fs-4'
+                    : 'bi bi-chevron-down fs-4';
+            }, 150);
+        }
+
+        // Group-aware filterMembers() lives in ~/js/member-index-filter.js (loaded above) so its
+        // pure decision core (computeGroupVisibility) is unit-testable. Inline onchange and the
+        // DOMContentLoaded wiring below call the global window.filterMembers it exposes.
+
+        function toggleSelectAll(tableType) {
+            var checkboxId = tableType === 'unverified' ? 'selectAllUnverified' : 'selectAllVerified';
+            var rootCheckbox = document.getElementById(checkboxId);
+            if (!rootCheckbox) return;
+
+            document.querySelectorAll('.member-checkbox[data-table="' + tableType + '"]').forEach(function (cb) {
+                cb.checked = rootCheckbox.checked;
+            });
+
+            updateBulkActionButton();
+        }
+
+        function updateBulkActionButton() {
+            var selectedCount = document.querySelectorAll('.member-checkbox:checked').length;
+            var dropdownButton = document.getElementById('bulkActionsDropdown');
+            if (!dropdownButton) return;
+
+            if (selectedCount > 0) {
+                dropdownButton.innerHTML = '<i class="bi bi-lightning-charge me-2"></i>Bulk-Aktionen (' + selectedCount + ')';
+                dropdownButton.classList.remove('btn-success');
+                dropdownButton.classList.add('btn-warning');
+            } else {
+                dropdownButton.innerHTML = '<i class="bi bi-lightning-charge me-2"></i>Bulk-Aktionen';
+                dropdownButton.classList.remove('btn-warning');
+                dropdownButton.classList.add('btn-success');
+            }
+        }
+
+        function loadMemberEdit(id) {
+            var container = document.getElementById('editMemberModalContent');
+            if (container) {
+                container.innerHTML = '<div class="text-center text-muted py-4"><div class="spinner-border"></div></div>';
+            }
+
+            fetch('/Members/Edit/' + id, {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+                .then(function (response) {
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status);
+                    }
+                    return response.text();
+                })
+                .then(function (html) {
+                    if (container) {
+                        container.innerHTML = html;
+                    }
+                })
+                .catch(function (error) {
+                    if (container) {
+                        container.innerHTML = "<div class='alert alert-danger'>Fehler beim Laden der Bearbeitungsansicht.<br><small>" + error.message + "</small></div>";
+                    }
+                });
+        }
+
+        function verifyMember(id) {
+            if (!confirm('Sind Sie sicher, dass Sie dieses Mitglied verifizieren moechten?')) return;
+
+            var tokenInput = document.querySelector('#hiddenAntiForgeryForm input[name="__RequestVerificationToken"]');
+            var token = tokenInput ? tokenInput.value : '';
+
+            fetch('/Members/Verify/' + id, {
+                method: 'POST',
+                headers: {
+                    'RequestVerificationToken': token
+                }
+            })
+                .then(function (response) {
+                    if (!response.ok) {
+                        throw new Error('Verifizierung fehlgeschlagen.');
+                    }
+                    location.reload();
+                })
+                .catch(function (error) {
+                    alert('Fehler: ' + error.message);
+                });
+        }
+
+        function deleteMember(id) {
+            if (!confirm('Sind Sie sicher, dass Sie dieses Mitglied loeschen moechten?')) return;
+
+            var tokenInput = document.querySelector('#hiddenAntiForgeryForm input[name="__RequestVerificationToken"]');
+            var token = tokenInput ? tokenInput.value : '';
+
+            fetch('/Members/Delete/' + id, {
+                method: 'POST',
+                headers: {
+                    'RequestVerificationToken': token
+                }
+            })
+                .then(function (response) {
+                    if (!response.ok) {
+                        throw new Error('Loeschen fehlgeschlagen.');
+                    }
+                    location.reload();
+                })
+                .catch(function (error) {
+                    alert('Fehler: ' + error.message);
+                });
+        }
+
+        document.addEventListener('submit', function (event) {
+            if (!event.target || event.target.id !== 'editMemberForm') {
+                return;
+            }
+
+            event.preventDefault();
+            var form = event.target;
+            var formData = new FormData(form);
+
+            fetch(form.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            })
+                .then(function (response) {
+                    if (!response.ok) {
+                        // Surface the real server-side validation message (e.g. a self-reference
+                        // or cycle rejection) instead of a generic failure text.
+                        return response.json().then(function (body) {
+                            var message = body && body.error && body.error.message
+                                ? body.error.message
+                                : 'Speichern fehlgeschlagen.';
+                            throw new Error(message);
+                        }, function () {
+                            throw new Error('Speichern fehlgeschlagen.');
+                        });
+                    }
+                    return response.json();
+                })
+                .then(function (result) {
+                    if (result && result.success) {
+                        localStorage.setItem('clubmanager_reload_needed', '1');
+                        location.reload();
+                    }
+                })
+                .catch(function (error) {
+                    alert('Fehler beim Speichern: ' + error.message);
+                });
+        }, true);
+
+        document.addEventListener('DOMContentLoaded', function () {
+            var searchInput = document.getElementById('searchInput');
+            var typeFilter = document.getElementById('typeFilter');
+            if (searchInput) {
+                searchInput.addEventListener('input', filterMembers);
+            }
+            if (typeFilter) {
+                typeFilter.addEventListener('change', filterMembers);
+            }
+
+            document.querySelectorAll('.member-checkbox').forEach(function (checkbox) {
+                checkbox.addEventListener('change', updateBulkActionButton);
+            });
+
+            var reloadNotice = document.getElementById('reloadNotice');
+            if (reloadNotice && localStorage.getItem('clubmanager_reload_needed') === '1') {
+                reloadNotice.style.display = 'block';
+            }
+
+            var reloadBtn = document.getElementById('reloadBtn');
+            if (reloadBtn) {
+                reloadBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    localStorage.removeItem('clubmanager_reload_needed');
+                    location.reload();
+                });
+            }
+
+            var birthdayButton = document.getElementById('send-all-birthday-greetings-btn');
+            if (birthdayButton) {
+                birthdayButton.addEventListener('click', function () {
+                    alert('Geburtstagsgruesse sind in ClubGear aktuell noch nicht als Versandprozess implementiert.');
+                });
+            }
+
+            filterMembers();
+            updateBulkActionButton();
+        });
+    </script>
+}

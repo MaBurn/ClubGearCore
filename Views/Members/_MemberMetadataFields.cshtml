@@ -1,0 +1,75 @@
+@model ClubGear.Models.Member
+@using ClubGear.Models
+@using ClubGear.Services.Abstractions
+@inject IMemberFeatureService MemberFeatureService
+@{
+    var membershipTypes = (ViewData["MembershipTypes"] as IReadOnlyList<MembershipType>) ?? new List<MembershipType>();
+    var currentValues = Model.MetadataValues
+        .Where(v => v.Field is not null)
+        .GroupBy(v => v.Field!.Key)
+        .ToDictionary(g => g.Key, g => g.First().Value, StringComparer.Ordinal);
+
+    var referencedMemberIds = currentValues
+        .Where(kv => membershipTypes.SelectMany(t => t.Fields).Any(f => f.Key == kv.Key && f.FieldType == MemberMetadataFieldType.MemberReference))
+        .Select(kv => int.TryParse(kv.Value, out var id) ? id : (int?)null)
+        .Where(id => id.HasValue)
+        .Select(id => id!.Value);
+    var referenceLabels = await MemberFeatureService.GetReferenceLabelsAsync(referencedMemberIds);
+}
+
+<div id="memberMetadataFieldGroups">
+    @foreach (var type in membershipTypes.Where(t => t.Fields.Count > 0))
+    {
+        var isSelected = Model.MembershipTypeId == type.Id;
+        <div class="member-metadata-group row g-3 mt-1" data-membership-type-id="@type.Id" style="@(isSelected ? "" : "display:none;")">
+            <div class="col-12">
+                <h6 class="text-muted small mb-1">Angaben zu "@type.Name"</h6>
+            </div>
+            @foreach (var field in type.Fields.OrderBy(f => f.SortOrder))
+            {
+                currentValues.TryGetValue(field.Key, out var currentValue);
+                var inputName = $"MetadataInputs[{field.Key}]";
+                var inputId = $"MetadataInputs_{type.Id}_{field.Key}";
+                <div class="col-md-6">
+                    <label class="form-label" for="@inputId">@field.Label@(field.IsRequired ? " *" : string.Empty)</label>
+                    @switch (field.FieldType)
+                    {
+                        case MemberMetadataFieldType.Boolean:
+                            var isChecked = string.Equals(currentValue, "true", StringComparison.OrdinalIgnoreCase);
+                            <div class="form-check">
+                                <input type="hidden" name="@inputName" value="false" />
+                                <input type="checkbox" class="form-check-input" id="@inputId" name="@inputName" value="true" @(isChecked ? "checked" : null) />
+                            </div>
+                            break;
+                        case MemberMetadataFieldType.Number:
+                            <input type="number" step="any" class="form-control" id="@inputId" name="@inputName" value="@currentValue" />
+                            break;
+                        case MemberMetadataFieldType.Date:
+                            <input type="date" class="form-control" id="@inputId" name="@inputName" value="@currentValue" />
+                            break;
+                        case MemberMetadataFieldType.MemberReference:
+                            var referenceLabel = !string.IsNullOrWhiteSpace(currentValue)
+                                && int.TryParse(currentValue, out var referencedId)
+                                && referenceLabels.TryGetValue(referencedId, out var resolvedLabel)
+                                ? resolvedLabel
+                                : string.Empty;
+                            <div class="member-reference-picker position-relative">
+                                <input type="hidden" id="@inputId" name="@inputName" value="@currentValue" class="member-reference-value" />
+                                <input type="text" class="form-control member-reference-search" data-value-target="#@inputId"
+                                       value="@referenceLabel" placeholder="Nachname Vorname suchen..." autocomplete="off" />
+                                <div class="list-group member-reference-results position-absolute w-100" style="display:none; z-index:1050; max-height:220px; overflow-y:auto;"></div>
+                            </div>
+                            break;
+                        default:
+                            <input type="text" class="form-control" id="@inputId" name="@inputName" value="@currentValue" />
+                            break;
+                    }
+                    @if (!string.IsNullOrWhiteSpace(field.HelpText))
+                    {
+                        <div class="form-text">@field.HelpText</div>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>

@@ -1,0 +1,20 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+
+@{
+    ViewData["Title"] = "Start";
+}
+
+<div class="p-4 p-md-5 mb-4 rounded-3 bg-light border">
+    <div class="container-fluid py-2">
+        <h1 class="display-6 fw-bold mb-3">ClubGear Basisplattform</h1>
+        <p class="col-md-9 fs-5 mb-4">
+            User/Memberverwaltung und Selfservice sind als Kernmodule eingerichtet.
+        </p>
+        <div class="d-flex gap-2 flex-wrap">
+            <a class="btn btn-primary btn-lg" asp-controller="Members" asp-action="Index">Mitgliederverwaltung</a>
+            <a class="btn btn-outline-primary btn-lg" asp-controller="SelfService" asp-action="Index">Selfservice</a>
+        </div>
+    </div>
+</div>

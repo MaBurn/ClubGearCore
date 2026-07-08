@@ -1,0 +1,61 @@
+@using ClubGear.Plugin.Contracts
+@model (PluginPageDefinition Definition, IReadOnlyDictionary<string, string?> Row, string ModuleId, string EntityKey)
+@{
+    var definition = Model.Definition;
+    var row = Model.Row;
+    var moduleId = Model.ModuleId;
+    var entityKey = Model.EntityKey;
+    ViewData["Title"] = definition.Title + " — Detail";
+}
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>@definition.Title</h2>
+        <a href="@Url.Action("Index", new { moduleId, pageKey = definition.PageKey })"
+           class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Zurueck
+        </a>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <dl class="row">
+                @foreach (var col in definition.Columns)
+                {
+                    <dt class="col-sm-3">@col.Label</dt>
+                    <dd class="col-sm-9">@(row.TryGetValue(col.Key, out var val) ? val ?? "" : "")</dd>
+                }
+            </dl>
+        </div>
+    </div>
+
+    @{
+        var rowCommands = definition.Commands.Where(c => c.RequiresEntityKey).ToList();
+    }
+    @if (rowCommands.Count > 0)
+    {
+        <div class="mb-3">
+            @foreach (var cmd in rowCommands)
+            {
+                var schemaJson = System.Text.Json.JsonSerializer.Serialize(cmd.Schema ?? []);
+                <button type="button"
+                        class="btn btn-outline-secondary me-1"
+                        data-plugin-page-action="@cmd.Key"
+                        data-module-id="@moduleId"
+                        data-page-key="@definition.PageKey"
+                        data-command-key="@cmd.Key"
+                        data-entity-key="@entityKey"
+                        data-command-label="@cmd.Label"
+                        data-command-schema="@schemaJson">
+                    @if (!string.IsNullOrEmpty(cmd.Icon))
+                    {
+                        <i class="bi @cmd.Icon me-1"></i>
+                    }
+                    @cmd.Label
+                </button>
+            }
+        </div>
+    }
+</div>
+
+<partial name="~/Views/PluginPage/_PluginPageActionModal.cshtml" />

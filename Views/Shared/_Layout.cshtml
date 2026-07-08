@@ -1,0 +1,126 @@
+﻿@using ClubGear.Services.Authorization
+@using ClubGear.Models
+@using ClubGear.Services.Abstractions
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<ApplicationUser> UserManager
+@inject IPluginNavEntryService PluginNavEntryService
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"] - ClubGear</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+
+    @RenderSection("Styles", required: false)
+</head>
+<body class="d-flex flex-column min-vh-100">
+    @{
+        var hasAdminRole = false;
+        if (User.Identity?.IsAuthenticated == true)
+        {
+            var currentUser = await UserManager.GetUserAsync(User);
+            if (currentUser is null && !string.IsNullOrWhiteSpace(User.Identity?.Name))
+            {
+                currentUser = await UserManager.FindByNameAsync(User.Identity.Name);
+            }
+
+            if (currentUser is null)
+            {
+                var emailClaim = User.Claims.FirstOrDefault(c =>
+                    string.Equals(c.Type, "email", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(c.Type, "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress", StringComparison.OrdinalIgnoreCase));
+                if (!string.IsNullOrWhiteSpace(emailClaim?.Value))
+                {
+                    currentUser = await UserManager.FindByEmailAsync(emailClaim.Value);
+                }
+            }
+
+            if (currentUser is not null)
+            {
+                hasAdminRole = await UserManager.IsInRoleAsync(currentUser, RoleNames.Admin);
+            }
+        }
+
+        var hasAdminPermissionClaim = User.Identity?.IsAuthenticated == true
+            && User.Claims.Any(claim =>
+                string.Equals(claim.Type, "permission", StringComparison.OrdinalIgnoreCase)
+                && (string.Equals(claim.Value, PermissionKeys.AdminAccess, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(claim.Value, PermissionKeys.Wildcard, StringComparison.OrdinalIgnoreCase)));
+
+        var canAccessPluginAdmin = hasAdminRole || hasAdminPermissionClaim;
+    }
+    <header>
+        <nav class="navbar navbar-expand-lg navbar-light bg-primary px-3">
+            <div class="container-fluid container">
+                <a class="navbar-brand" asp-controller="Home" asp-action="Index">ClubGear</a>
+
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain" aria-controls="navbarMain" aria-expanded="false" aria-label="Navigation umschalten">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <div class="collapse navbar-collapse" id="navbarMain">
+                    <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                        <li class="nav-item">
+                            <a class="nav-link" asp-controller="Home" asp-action="Index">Home</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" asp-controller="Members" asp-action="Index">Mitglieder</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" asp-controller="Home" asp-action="Privacy">Datenschutz</a>
+                        </li>
+                        @{
+                            var pluginNavEntries = await PluginNavEntryService.GetVisibleNavEntriesAsync(User, Context.RequestAborted);
+                        }
+                        @foreach (var entry in pluginNavEntries)
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link" href="@entry.Route"><i class="bi @entry.Icon"></i> @entry.Label</a>
+                            </li>
+                        }
+                        @if (canAccessPluginAdmin)
+                        {
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" id="adminNavDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    Administration
+                                </a>
+                                <ul class="dropdown-menu cg-admin-menu" aria-labelledby="adminNavDropdown">
+                                    <li><h6 class="dropdown-header">Administrative Funktionen</h6></li>
+                                    <li><a class="dropdown-item" asp-controller="Admin" asp-action="Functions">Admin-Funktionen</a></li>
+                                    <li><a class="dropdown-item" asp-controller="Members" asp-action="Index">Mitgliederverwaltung</a></li>
+                                    <li><a class="dropdown-item" asp-controller="PluginAdmin" asp-action="Index">Plugins</a></li>
+                                    <li><a class="dropdown-item" asp-controller="RolePermissions" asp-action="Index">Berechtigungen</a></li>
+                                    <li><a class="dropdown-item" asp-controller="MembershipTypes" asp-action="Index">Mitgliedsarten</a></li>
+                                </ul>
+                            </li>
+                        }
+                    </ul>
+
+                    <partial name="_LoginPartial" />
+                </div>
+            </div>
+        </nav>
+        <div class="header-bar"></div>
+    </header>
+
+    <main class="container flex-fill cg-main-shell">
+        @RenderBody()
+    </main>
+
+    <footer class="footer py-3">
+        <div class="container">
+            <p class="mb-0">&copy; @DateTime.Now.Year - ClubGear | <a asp-controller="Home" asp-action="Privacy">Datenschutz</a></p>
+        </div>
+    </footer>
+    <div class="footer-bar"></div>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

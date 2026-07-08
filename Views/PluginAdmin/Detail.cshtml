@@ -1,0 +1,324 @@
+@model ClubGear.Models.PluginAdmin.PluginAdminStatusViewModel
+@using ClubGear.Models.Feedback
+@using ClubGear.Services.Abstractions
+@inject IPluginRegistryReader PluginRegistryReader
+@inject IPluginBackgroundJobRunner JobRunner
+@{
+    ViewData["Title"] = Model.DisplayName + " — Plugin-Details";
+    var feedback = ViewData[ActionFeedbackViewModel.ViewDataKey] as ActionFeedbackViewModel
+        ?? ActionFeedbackViewModel.FromTempData(TempData);
+}
+
+<div class="cg-page cg-page--plugin-detail">
+    <section class="cg-page-section cg-page-header d-flex flex-wrap justify-content-between align-items-start gap-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-action="Index">Plugin-Administration</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">@Model.DisplayName</li>
+                </ol>
+            </nav>
+            <h1 class="h3 mb-1">@Model.DisplayName</h1>
+            <p class="text-muted mb-0 small">@Model.ModuleId</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2 align-items-start">
+            @if (string.Equals(Model.Category, "technical", StringComparison.OrdinalIgnoreCase))
+            {
+                <span class="badge bg-warning text-dark" data-plugin-technical-badge>Technisches Plugin</span>
+            }
+            <span class="badge bg-info text-dark">@Model.Category</span>
+            <span class="badge @(Model.IsActive ? "bg-success" : "bg-secondary")">@(Model.IsActive ? "Aktiviert" : "Installiert")</span>
+        </div>
+    </section>
+
+    @if (feedback is not null)
+    {
+        <section class="cg-page-section">
+            <div class="alert @feedback.AlertCssClass mb-0" role="status" data-feedback-kind="@feedback.Kind">
+                @feedback.Message
+            </div>
+        </section>
+    }
+
+    <section class="cg-page-section">
+        <div class="row g-4">
+
+            <!-- Identity & Version -->
+            <div class="col-12 col-lg-6">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <h2 class="h5 card-title mb-3">Identitaet &amp; Version</h2>
+                        <dl class="row mb-0">
+                            <dt class="col-sm-5">Name</dt>
+                            <dd class="col-sm-7" data-detail-field="name">@Model.DisplayName</dd>
+
+                            <dt class="col-sm-5">Modul-ID</dt>
+                            <dd class="col-sm-7" data-detail-field="module-id"><code>@Model.ModuleId</code></dd>
+
+                            <dt class="col-sm-5">Version</dt>
+                            <dd class="col-sm-7" data-detail-field="version">@Model.PluginVersion</dd>
+
+                            <dt class="col-sm-5">Quelle</dt>
+                            <dd class="col-sm-7" data-detail-field="source">@Model.Source</dd>
+
+                            <dt class="col-sm-5">Kategorie</dt>
+                            <dd class="col-sm-7" data-detail-field="category">@Model.Category</dd>
+
+                            <dt class="col-sm-5">Autor</dt>
+                            <dd class="col-sm-7" data-detail-field="author">@Model.Author</dd>
+
+                            <dt class="col-sm-5">Lizenz</dt>
+                            <dd class="col-sm-7" data-detail-field="license">@Model.License</dd>
+
+                            <dt class="col-sm-5">Benoetigte Core-Version</dt>
+                            <dd class="col-sm-7" data-detail-field="required-core-version">@Model.RequiredCoreVersion</dd>
+
+                            <dt class="col-sm-5">Installiert am</dt>
+                            <dd class="col-sm-7" data-detail-field="installed-at">@(Model.InstalledAtUtc?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "-")</dd>
+
+                            <dt class="col-sm-5">Paket-Hash</dt>
+                            <dd class="col-sm-7" data-detail-field="package-hash">
+                                @if (string.IsNullOrWhiteSpace(Model.PackageHash))
+                                {
+                                    <span class="text-muted">-</span>
+                                }
+                                else
+                                {
+                                    <code class="small">@Model.PackageHash</code>
+                                }
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status & Runtime -->
+            <div class="col-12 col-lg-6">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <h2 class="h5 card-title mb-3">Status &amp; Laufzeit</h2>
+                        <dl class="row mb-0">
+                            <dt class="col-sm-5">Installiert</dt>
+                            <dd class="col-sm-7" data-detail-field="is-installed">
+                                <span class="badge @(Model.IsInstalled ? "bg-success" : "bg-secondary")">@(Model.IsInstalled ? "Ja" : "Nein")</span>
+                            </dd>
+
+                            <dt class="col-sm-5">Aktiviert</dt>
+                            <dd class="col-sm-7" data-detail-field="is-active">
+                                <span class="badge @(Model.IsActive ? "bg-success" : "bg-secondary")">@(Model.IsActive ? "Ja" : "Nein")</span>
+                            </dd>
+
+                            <dt class="col-sm-5">Runtime registriert</dt>
+                            <dd class="col-sm-7">
+                                <span class="badge @(Model.IsRuntimeRegistered ? "bg-info text-dark" : "bg-light text-dark")">@(Model.IsRuntimeRegistered ? "Ja" : "Nein")</span>
+                            </dd>
+
+                            <dt class="col-sm-5">Vertrag kompatibel</dt>
+                            <dd class="col-sm-7">
+                                <span class="badge @(Model.IsContractCompatible ? "bg-success" : "bg-danger")">@(Model.IsContractCompatible ? "Ja" : "Nein")</span>
+                                @if (!string.IsNullOrWhiteSpace(Model.ContractCompatibilityReason))
+                                {
+                                    <div class="small text-danger mt-1">@Model.ContractCompatibilityReason</div>
+                                }
+                            </dd>
+
+                            <dt class="col-sm-5">Migrationen angewandt</dt>
+                            <dd class="col-sm-7" data-detail-field="applied-migration-count">@Model.AppliedMigrationCount</dd>
+
+                            <dt class="col-sm-5">Navigations-Eintraege</dt>
+                            <dd class="col-sm-7" data-detail-field="nav-entry-count">@Model.NavEntryCount</dd>
+
+                            <dt class="col-sm-5">Load-Context</dt>
+                            <dd class="col-sm-7">@(Model.LoadContextName ?? "-")</dd>
+
+                            <dt class="col-sm-5">Routen</dt>
+                            <dd class="col-sm-7">@Model.RouteCount</dd>
+
+                            <dt class="col-sm-5">Services</dt>
+                            <dd class="col-sm-7">@Model.ServiceCount</dd>
+
+                            <dt class="col-sm-5">Member-Slots</dt>
+                            <dd class="col-sm-7">@Model.MemberProviderCount</dd>
+
+                            <dt class="col-sm-5">Background-Jobs</dt>
+                            <dd class="col-sm-7">@Model.BackgroundJobCount</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Permissions -->
+            <div class="col-12 col-md-6">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <h2 class="h5 card-title mb-3">Berechtigungen</h2>
+                        @if (Model.Permissions.Count == 0)
+                        {
+                            <p class="text-muted mb-0 small">Keine Berechtigungen deklariert.</p>
+                        }
+                        else
+                        {
+                            <div class="d-flex flex-wrap gap-2" data-detail-field="permissions">
+                                @foreach (var permission in Model.Permissions)
+                                {
+                                    <span class="badge bg-light text-dark border">@permission</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Extension Points -->
+            <div class="col-12 col-md-6">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <h2 class="h5 card-title mb-3">Erweiterungspunkte</h2>
+                        @if (Model.ExtensionPoints.Count == 0)
+                        {
+                            <p class="text-muted mb-0 small">Keine Erweiterungspunkte deklariert.</p>
+                        }
+                        else
+                        {
+                            <div class="d-flex flex-wrap gap-2" data-detail-field="extension-points">
+                                @foreach (var point in Model.ExtensionPoints)
+                                {
+                                    <span class="badge bg-light text-dark border">@point</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Last Error -->
+            @if (!string.IsNullOrWhiteSpace(Model.LastError))
+            {
+                <div class="col-12">
+                    <div class="card shadow-sm border-danger">
+                        <div class="card-body">
+                            <h2 class="h5 card-title text-danger mb-2">Letzter Fehler</h2>
+                            <pre class="small text-danger mb-0">@Model.LastError</pre>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Navigation -->
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h2 class="h5 card-title mb-3">Navigation</h2>
+                        @if (!Model.IsRuntimeRegistered)
+                        {
+                            <p class="text-muted">Plugin ist nicht aktiv.</p>
+                        }
+                        else
+                        {
+                            var navEntries = PluginRegistryReader.GetByModuleId(Model.ModuleId)?.NavEntries;
+                            if (navEntries is null || navEntries.Count == 0)
+                            {
+                                <p class="text-muted">Keine Navigations-Eintraege registriert.</p>
+                            }
+                            else
+                            {
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered mb-0" data-detail-field="nav-entries">
+                                        <thead>
+                                            <tr>
+                                                <th>Label</th>
+                                                <th>Icon</th>
+                                                <th>Route</th>
+                                                <th>Berechtigung</th>
+                                                <th>Reihenfolge</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var entry in navEntries)
+                                            {
+                                                <tr>
+                                                    <td>@entry.Label</td>
+                                                    <td><i class="bi @entry.Icon"></i> <code class="small">@entry.Icon</code></td>
+                                                    <td><code class="small">@entry.Route</code></td>
+                                                    <td>@(entry.RequiredPermission ?? "-")</td>
+                                                    <td>@entry.SortOrder</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Background-Jobs -->
+            @if (Model.IsRuntimeRegistered)
+            {
+                <div class="col-12" data-detail-field="background-jobs">
+                    <div class="card shadow-sm">
+                        <div class="card-body">
+                            <h2 class="h5 card-title mb-3">Background-Jobs</h2>
+                            @{
+                                var jobStatuses = JobRunner.GetJobStatuses(Model.ModuleId);
+                            }
+                            @if (jobStatuses.Count == 0)
+                            {
+                                <p class="text-muted">Keine Background-Jobs registriert.</p>
+                            }
+                            else
+                            {
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Job Key</th>
+                                                <th>Typ</th>
+                                                <th>Status</th>
+                                                <th>Letzte Ausfuehrung</th>
+                                                <th>Letzter Fehler</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var job in jobStatuses)
+                                            {
+                                                <tr>
+                                                    <td><code class="small">@job.JobKey</code></td>
+                                                    <td><code class="small">@job.JobType</code></td>
+                                                    <td>
+                                                        <span class="badge @(job.State == PluginJobRunState.Running ? "bg-success" : job.State == PluginJobRunState.Faulted ? "bg-danger" : "bg-secondary")">
+                                                            @job.State
+                                                        </span>
+                                                    </td>
+                                                    <td>@(job.LastRunUtc?.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss") ?? "-")</td>
+                                                    <td>
+                                                        @if (string.IsNullOrWhiteSpace(job.LastError))
+                                                        {
+                                                            <span class="text-muted">-</span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="text-danger small">@job.LastError</span>
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+
+        </div>
+    </section>
+
+    <section class="cg-page-section">
+        <div class="d-flex flex-wrap gap-2">
+            <a asp-action="Index" class="btn btn-outline-secondary">Zurueck zur Liste</a>
+        </div>
+    </section>
+</div>

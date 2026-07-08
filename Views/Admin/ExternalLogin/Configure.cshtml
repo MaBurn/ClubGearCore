@@ -1,0 +1,127 @@
+@model ClubGear.Controllers.Admin.ExternalLoginConfigureViewModel
+@using ClubGear.Plugin.Contracts
+@inject ClubGear.Services.Abstractions.IExternalLoginConfigService ExternalLoginConfigService
+@inject ClubGear.Services.Abstractions.IPluginRegistryReader PluginRegistryReader
+@{
+    ViewData["Title"] = $"Konfigurieren: {Model.ProviderInfo.DisplayName}";
+
+    // Resolve the schema from the live plugin (may be null if plugin not loaded).
+    IReadOnlyList<PluginFieldSchema>? schema = null;
+    var runtimes = PluginRegistryReader.GetRegisteredPlugins();
+    foreach (var runtime in runtimes)
+    {
+        foreach (var contribution in runtime.IdentityProviders)
+        {
+            if (string.Equals(contribution.ProviderKey, Model.ProviderInfo.ProviderKey, StringComparison.OrdinalIgnoreCase))
+            {
+                var plugin = PluginRegistryReader.CreateMemberProvider<IIdentityProviderPlugin>(
+                    runtime.ModuleId, contribution.ProviderType);
+                schema = plugin?.GetConfigSchema();
+                break;
+            }
+        }
+        if (schema is not null) break;
+    }
+}
+
+<div class="cg-page cg-page--external-login-configure" data-page="external-login-configure">
+    <section class="cg-page-section cg-page-header d-flex flex-wrap justify-content-between align-items-start gap-3">
+        <div>
+            <h1 class="h3 mb-1">@Model.ProviderInfo.DisplayName konfigurieren</h1>
+            <p class="text-muted mb-0">Provider-Schluessel: <code>@Model.ProviderInfo.ProviderKey</code></p>
+        </div>
+        <a href="@Url.Action("Index", "ExternalLoginAdmin")" class="btn btn-outline-secondary">
+            Zurueck
+        </a>
+    </section>
+
+    <section class="cg-page-section">
+        <form method="post"
+              asp-action="Configure"
+              asp-controller="ExternalLoginAdmin"
+              asp-route-provider="@Model.ProviderInfo.ProviderKey">
+            @Html.AntiForgeryToken()
+
+            @if (schema is not null && schema.Any())
+            {
+                @foreach (var field in schema.OrderBy(f => f.Order))
+                {
+                    var currentValue = Model.ConfigValues.TryGetValue(field.Key, out var stored) ? stored : string.Empty;
+                    var hasValue = !string.IsNullOrEmpty(currentValue);
+
+                    <div class="mb-3">
+                        <label for="field_@field.Key" class="form-label fw-semibold">
+                            @field.Label
+                            @if (field.Required)
+                            {
+                                <span class="text-danger">*</span>
+                            }
+                        </label>
+
+                        @if (field.InputType == PluginSchemaFieldType.Secret)
+                        {
+                            @if (hasValue)
+                            {
+                                <div class="input-group">
+                                    <input type="password"
+                                           id="field_@field.Key"
+                                           name="@field.Key"
+                                           class="form-control"
+                                           placeholder="***"
+                                           autocomplete="new-password" />
+                                    <span class="input-group-text text-muted small">
+                                        Gespeichert — leer lassen, um unveraendert zu behalten
+                                    </span>
+                                </div>
+                            }
+                            else
+                            {
+                                <input type="password"
+                                       id="field_@field.Key"
+                                       name="@field.Key"
+                                       class="form-control"
+                                       placeholder="@(field.Placeholder ?? string.Empty)"
+                                       autocomplete="new-password" />
+                            }
+                        }
+                        else if (field.InputType == PluginSchemaFieldType.MultilineText)
+                        {
+                            <textarea id="field_@field.Key"
+                                      name="@field.Key"
+                                      class="form-control"
+                                      rows="4"
+                                      placeholder="@(field.Placeholder ?? string.Empty)">@currentValue</textarea>
+                        }
+                        else
+                        {
+                            <input type="text"
+                                   id="field_@field.Key"
+                                   name="@field.Key"
+                                   class="form-control"
+                                   value="@currentValue"
+                                   placeholder="@(field.Placeholder ?? string.Empty)" />
+                        }
+
+                        @if (!string.IsNullOrEmpty(field.HelpText))
+                        {
+                            <div class="form-text text-muted">@field.HelpText</div>
+                        }
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="alert alert-warning">
+                    Das Plugin liefert kein Konfigurations-Schema oder ist nicht geladen.
+                </div>
+            }
+
+            <div class="d-flex gap-2 mt-4">
+                <button type="submit" class="btn btn-primary">Speichern</button>
+                <a href="@Url.Action("Index", "ExternalLoginAdmin")" class="btn btn-outline-secondary">
+                    Abbrechen
+                </a>
+            </div>
+        </form>
+    </section>
+</div>

@@ -1,0 +1,41 @@
+version: "3.9"
+
+services:
+  clubgear-local:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: clubgear:local
+    profiles: ["local"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Plugins__Enabled: "true"
+      Plugins__ZipUpload__Enabled: "true"
+    ports:
+      - "5080:8080"
+
+  clubgear-staging:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: clubgear:staging
+    profiles: ["staging"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: Staging
+      Plugins__Enabled: "true"
+      Plugins__ZipUpload__Enabled: "false"
+    ports:
+      - "5081:8080"
+
+  clubgear-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: clubgear:prod
+    profiles: ["prod"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Plugins__Enabled: "false"
+      Plugins__ZipUpload__Enabled: "false"
+    ports:
+      - "5082:8080"

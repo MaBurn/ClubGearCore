@@ -1,0 +1,176 @@
+@model ClubGear.Services.Abstractions.MemberPluginSlotSnapshot
+
+@{
+    var mode = ViewData["PluginSlotMode"] as string ?? "details";
+
+    static string BadgeCss(string tone)
+    {
+        return tone.ToLowerInvariant() switch
+        {
+            "primary" => "bg-primary",
+            "secondary" => "bg-secondary",
+            "success" => "bg-success",
+            "danger" => "bg-danger",
+            "warning" => "bg-warning text-dark",
+            "info" => "bg-info text-dark",
+            "light" => "bg-light text-dark",
+            "dark" => "bg-dark",
+            _ => "bg-secondary"
+        };
+    }
+
+    static string SafeTabId(string moduleId, string tabKey)
+        => $"plugin-tab-{moduleId}-{tabKey}".Replace('.', '-').Replace('_', '-');
+}
+
+@if (string.Equals(mode, "details", StringComparison.OrdinalIgnoreCase))
+{
+    @if (Model.StatusBadges.Count > 0)
+    {
+        <div class="mb-3 d-flex flex-wrap gap-2" data-plugin-slot="status-badges">
+            @foreach (var badge in Model.StatusBadges)
+            {
+                <span class="badge @BadgeCss(badge.Badge.Tone)" title="@badge.PluginDisplayName">@badge.Badge.Label</span>
+            }
+        </div>
+    }
+
+    @if (Model.DetailCards.Count > 0)
+    {
+        <div class="row g-3 mb-4" data-plugin-slot="detail-cards">
+            @foreach (var card in Model.DetailCards)
+            {
+                <div class="col-12 col-lg-6">
+                    <div class="card border-light-subtle h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
+                                <h2 class="h6 mb-0">@card.Card.Title</h2>
+                                <span class="text-muted small">@card.PluginDisplayName</span>
+                            </div>
+                            <p class="mb-0">@card.Card.Body</p>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+else if (string.Equals(mode, "edit", StringComparison.OrdinalIgnoreCase) && Model.EditTabs.Count > 0)
+{
+    <section class="mt-4" data-plugin-slot="edit-tabs">
+        <h2 class="h5 mb-3">Plugin-Erweiterungen</h2>
+
+        <ul class="nav nav-tabs" role="tablist">
+            @for (var index = 0; index < Model.EditTabs.Count; index++)
+            {
+                var tab = Model.EditTabs[index];
+                var tabId = SafeTabId(tab.ModuleId, tab.Tab.Key);
+
+                <li class="nav-item" role="presentation">
+                    <button
+                        class="nav-link @(index == 0 ? "active" : null)"
+                        id="@($"{tabId}-tab")"
+                        data-bs-toggle="tab"
+                        data-bs-target="#@tabId"
+                        type="button"
+                        role="tab"
+                        aria-controls="@tabId"
+                        aria-selected="@(index == 0 ? "true" : "false")">
+                        @tab.Tab.Title
+                    </button>
+                </li>
+            }
+        </ul>
+
+        <div class="tab-content border border-top-0 rounded-bottom p-3 bg-light">
+            @for (var index = 0; index < Model.EditTabs.Count; index++)
+            {
+                var tab = Model.EditTabs[index];
+                var tabId = SafeTabId(tab.ModuleId, tab.Tab.Key);
+
+                <div
+                    class="tab-pane fade @(index == 0 ? "show active" : null)"
+                    id="@tabId"
+                    role="tabpanel"
+                    aria-labelledby="@($"{tabId}-tab")"
+                    tabindex="0">
+                    <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
+                        <h3 class="h6 mb-0">@tab.Tab.Title</h3>
+                        <span class="text-muted small">@tab.PluginDisplayName</span>
+                    </div>
+                    @(Html.Raw(tab.Tab.Content))
+                </div>
+            }
+        </div>
+    </section>
+}
+else if (string.Equals(mode, "edit-cards", StringComparison.OrdinalIgnoreCase) && Model.EditTabs.Count > 0)
+{
+    var groups = Model.EditTabs
+        .GroupBy(t => t.GroupKey ?? $"__solo_{t.ModuleId}_{t.Tab.Key}")
+        .ToList();
+
+    <div data-plugin-slot="edit-cards">
+        @foreach (var group in groups)
+        {
+            var members = group.ToList();
+
+            if (members.Count == 1)
+            {
+                var tab = members[0];
+                <section class="card border-light-subtle mb-3">
+                    <div class="card-body">
+                        <h2 class="h6 mb-2">@tab.Tab.Title</h2>
+                        @Html.Raw(tab.Tab.Content)
+                    </div>
+                </section>
+            }
+            else
+            {
+                var groupTitle = members[0].GroupTitle ?? group.Key;
+                var cardNavId = $"group-nav-{group.Key}".Replace('.', '-').Replace('_', '-');
+
+                <section class="card border-light-subtle mb-3">
+                    <div class="card-body">
+                        <h2 class="h6 mb-3">@groupTitle</h2>
+                        <ul class="nav nav-tabs" id="@cardNavId" role="tablist">
+                            @for (var gi = 0; gi < members.Count; gi++)
+                            {
+                                var tab = members[gi];
+                                var tabId = SafeTabId(tab.ModuleId, tab.Tab.Key);
+                                <li class="nav-item" role="presentation">
+                                    <button
+                                        class="nav-link @(gi == 0 ? "active" : null)"
+                                        id="@($"{tabId}-tab")"
+                                        data-bs-toggle="tab"
+                                        data-bs-target="#@tabId"
+                                        type="button"
+                                        role="tab"
+                                        aria-controls="@tabId"
+                                        aria-selected="@(gi == 0 ? "true" : "false")">
+                                        @tab.Tab.Title
+                                    </button>
+                                </li>
+                            }
+                        </ul>
+                        <div class="tab-content border border-top-0 rounded-bottom p-3">
+                            @for (var gi = 0; gi < members.Count; gi++)
+                            {
+                                var tab = members[gi];
+                                var tabId = SafeTabId(tab.ModuleId, tab.Tab.Key);
+                                <div
+                                    class="tab-pane fade @(gi == 0 ? "show active" : null)"
+                                    id="@tabId"
+                                    role="tabpanel"
+                                    aria-labelledby="@($"{tabId}-tab")"
+                                    tabindex="0">
+                                    @Html.Raw(tab.Tab.Content)
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </section>
+            }
+        }
+    </div>
+}

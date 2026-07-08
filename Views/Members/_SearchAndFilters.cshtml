@@ -1,0 +1,37 @@
+@model ClubGear.Models.MemberFilters.MemberSearchFilterViewModel
+
+<div class="members-search-card cg-panel shadow-sm">
+    <div class="members-search-card__header">
+        <div>
+            <p class="members-search-card__eyebrow">Suche und Filter</p>
+            <h2 class="members-search-card__title">Mitglieder schnell eingrenzen</h2>
+        </div>
+        <p class="members-search-card__copy">
+            Suche nach Namen, Nummern oder E-Mail-Adressen und reduziere die Liste sofort auf aktive oder inaktive Datensaetze.
+        </p>
+    </div>
+
+    <form asp-action="Index" method="post" class="members-search-form">
+        @Html.AntiForgeryToken()
+        <div class="members-search-form__primary">
+            <label asp-for="Search" class="visually-hidden"></label>
+            <input asp-for="Search" class="form-control form-control-lg" placeholder="Mitglieder suchen..." />
+        </div>
+
+        <div class="members-search-form__secondary">
+            <div class="members-search-field">
+                <label asp-for="Status" class="form-label">Status</label>
+                <select asp-for="Status" class="form-select form-select-lg">
+                    <option value="all">Alle</option>
+                    <option value="active">Nur aktiv</option>
+                    <option value="inactive">Nur inaktiv</option>
+                </select>
+            </div>
+
+            <div class="members-search-actions">
+                <button type="submit" class="btn btn-outline-primary btn-lg">Filter anwenden</button>
+                <a asp-action="Index" class="btn btn-outline-secondary btn-lg">Zuruecksetzen</a>
+            </div>
+        </div>
+    </form>
+</div>

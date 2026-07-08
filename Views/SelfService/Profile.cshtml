@@ -1,0 +1,424 @@
+@using ClubGear.Services.Abstractions
+@model ClubGear.Models.SelfServiceProfileViewModel
+@{
+    ViewData["Title"] = "Dein Mitgliedsprofil";
+    ViewData["PluginActionEndpoint"] = "/api/self-service/plugin-actions";
+    ViewData["PluginSlotMode"] = "edit-cards";
+    var pluginSlots = ViewData["MemberPluginSlots"] as MemberPluginSlotSnapshot ?? MemberPluginSlotSnapshot.Empty;
+    var selfServiceSections = ViewData["SelfServicePluginSections"]
+        as IReadOnlyList<SelfServicePluginSectionView>
+        ?? Array.Empty<SelfServicePluginSectionView>();
+    var selfServiceActionEndpoint = ViewData["SelfServiceActionEndpoint"] as string
+        ?? "/api/self-service/plugin-self-service-actions";
+
+    var initials = string.Join(string.Empty, (Model.FullName ?? string.Empty)
+        .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+        .Take(2)
+        .Select(part => char.ToUpperInvariant(part[0])));
+
+    if (string.IsNullOrWhiteSpace(initials))
+    {
+        initials = "MP";
+    }
+
+    string fmtDate(DateTime? date) => date?.ToString("yyyy-MM-dd") ?? string.Empty;
+
+}
+
+<div class="cg-page cg-page--selfservice">
+    <section class="cg-page-section">
+        <h1 class="cg-page-title mb-3">@ViewData["Title"]</h1>
+
+        @if (TempData["Success"] is string success)
+        {
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                @success
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Schliessen"></button>
+            </div>
+        }
+
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+        <form asp-controller="SelfService" asp-action="Profile" method="post" id="editProfileForm" class="mt-3">
+            @Html.AntiForgeryToken()
+
+            <input type="hidden" asp-for="MemberLinked" />
+            <input type="hidden" asp-for="MemberNumber" />
+            <input type="hidden" asp-for="MemberActive" />
+            <input type="hidden" asp-for="MemberJoinedAt" />
+            <input type="hidden" asp-for="FirstName" />
+            <input type="hidden" asp-for="LastName" />
+            <input type="hidden" asp-for="DateOfBirth" />
+            <input type="hidden" asp-for="LastUpdated" />
+            <input type="hidden" asp-for="ProfileImagePath" />
+            <input type="hidden" asp-for="PendingEmail" />
+
+            <div class="row g-4">
+                <div class="col-xl-6">
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-body d-flex gap-3 align-items-center">
+                            <div>
+                                @if (!string.IsNullOrWhiteSpace(Model.ProfileImagePath))
+                                {
+                                    <img src="@Model.ProfileImagePath" alt="Profilbild" class="rounded-circle" style="width: 96px; height: 96px; object-fit: cover;" id="profilePreview" />
+                                }
+                                else
+                                {
+                                    <div class="rounded-circle bg-light border d-flex align-items-center justify-content-center" style="width: 96px; height: 96px;" id="profilePreview">
+                                        <span class="fw-bold fs-4 text-muted">@initials</span>
+                                    </div>
+                                }
+                            </div>
+                            <div>
+                                <h2 class="h5 mb-1">Profilbild</h2>
+                                <div class="d-flex gap-2 flex-wrap mb-2">
+                                    <label for="profileImageUpload" class="btn btn-primary btn-sm mb-0">
+                                        Bild hochladen
+                                    </label>
+                                    <input
+                                        type="file"
+                                        id="profileImageUpload"
+                                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                                        class="d-none"
+                                        onchange="uploadProfileImage()" />
+                                    @if (!string.IsNullOrWhiteSpace(Model.ProfileImagePath))
+                                    {
+                                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="deleteProfileImage()">
+                                            Bild loeschen
+                                        </button>
+                                    }
+                                </div>
+                                <p class="text-muted mb-0 small">Erlaubte Formate: JPG, PNG, GIF, WebP (max. 5 MB).</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-body">
+                            <h2 class="h5 mb-3">Stammdaten</h2>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Mitgliedsnummer</label>
+                                    <input class="form-control bg-light" value="@(Model.MemberNumber ?? "-")" readonly />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Status</label>
+                                    <input class="form-control bg-light" value="@(Model.MemberActive ? "Aktiv" : "Inaktiv")" readonly />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Vorname</label>
+                                    <input class="form-control bg-light" value="@(Model.FirstName ?? "-")" readonly />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Nachname</label>
+                                    <input class="form-control bg-light" value="@(Model.LastName ?? "-")" readonly />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Geburtsdatum</label>
+                                    <input class="form-control bg-light" type="date" value="@fmtDate(Model.DateOfBirth)" readonly />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Zuletzt aktualisiert</label>
+                                    <input class="form-control bg-light" value="@(Model.LastUpdated?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "-")" readonly />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-body">
+                            <h2 class="h5 mb-3">Adressdaten</h2>
+                            <div id="addressesContainer">
+                                @if (Model.Addresses.Count == 0)
+                                {
+                                    <p class="text-muted" id="addressesEmptyHint">Noch keine Adresse eingetragen.</p>
+                                }
+
+                                @for (var i = 0; i < Model.Addresses.Count; i++)
+                                {
+                                    <div class="border rounded p-3 mb-3 selfservice-address-row">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <strong>Adresse @(i + 1)</strong>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeAddress(this)">Entfernen</button>
+                                        </div>
+
+                                        <input type="hidden" name="Addresses[@i].Id" value="@Model.Addresses[i].Id" />
+
+                                        <div class="row g-2">
+                                            <div class="col-md-12">
+                                                <label class="form-label">Strasse</label>
+                                                <input class="form-control" name="Addresses[@i].Street" value="@Model.Addresses[i].Street" />
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label">PLZ</label>
+                                                <input class="form-control" name="Addresses[@i].PostalCode" value="@Model.Addresses[i].PostalCode" />
+                                            </div>
+                                            <div class="col-md-5">
+                                                <label class="form-label">Stadt</label>
+                                                <input class="form-control" name="Addresses[@i].City" value="@Model.Addresses[i].City" />
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Land</label>
+                                                <input class="form-control" name="Addresses[@i].Country" value="@Model.Addresses[i].Country" />
+                                            </div>
+                                            <div class="col-12">
+                                                <input type="hidden" name="Addresses[@i].IsDefault" value="false" />
+                                                <div class="form-check mt-1">
+                                                    <input class="form-check-input" type="checkbox" name="Addresses[@i].IsDefault" value="true" @(Model.Addresses[i].IsDefault ? "checked" : "") />
+                                                    <label class="form-check-label">Standardadresse</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="addAddress()">Adresse hinzufuegen</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-xl-6">
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-body">
+                            <h2 class="h5 mb-3">Kontaktdaten bearbeiten</h2>
+
+                            <div class="mb-3">
+                                <label asp-for="FullName" class="form-label"></label>
+                                <input asp-for="FullName" class="form-control" autocomplete="name" />
+                                <span asp-validation-for="FullName" class="text-danger"></span>
+                            </div>
+
+                            <div class="mb-3">
+                                <label asp-for="Email" class="form-label"></label>
+                                <input asp-for="Email" class="form-control" autocomplete="email" />
+                                <span asp-validation-for="Email" class="text-danger"></span>
+
+                                @if (!string.IsNullOrWhiteSpace(Model.PendingEmail))
+                                {
+                                    <div class="alert alert-info mt-2 mb-0 py-2">
+                                        Aenderung ausstehend: <strong>@Model.PendingEmail</strong>
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="mb-0">
+                                <label asp-for="PhoneNumber" class="form-label"></label>
+                                <input asp-for="PhoneNumber" class="form-control" autocomplete="tel" />
+                                <span asp-validation-for="PhoneNumber" class="text-danger"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-body">
+                            <h2 class="h5 mb-3">Mitgliedschaft</h2>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100">
+                                        <small class="text-muted d-block">Verknuepfung</small>
+                                        <strong>@(Model.MemberLinked ? "Verknuepft" : "Nicht verknuepft")</strong>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100">
+                                        <small class="text-muted d-block">Mitglied seit</small>
+                                        <strong>@(Model.MemberJoinedAt?.ToString("dd.MM.yyyy") ?? "-")</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (pluginSlots.EditTabs.Count > 0)
+                    {
+                        <div data-selfservice-plugin-host>
+                            <partial name="~/Views/Members/_PluginSlots.cshtml" model="pluginSlots" />
+                        </div>
+                    }
+
+                    @foreach (var sv in selfServiceSections.OrderBy(s => s.SortOrder).ThenBy(s => s.ModuleId))
+                    {
+                        <div class="card shadow-sm mb-4" id="plugin-selfservice-@sv.Section.Key"
+                             data-selfservice-action-endpoint="@selfServiceActionEndpoint">
+                            <div class="card-header">
+                                <h6 class="mb-0">@sv.Section.Title</h6>
+                            </div>
+                            <div class="card-body">
+                                @Html.Raw(sv.Section.HtmlBody)
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2 mt-2">
+                <a asp-action="Index" class="btn btn-outline-secondary">Zurueck</a>
+                <button type="submit" class="btn btn-primary">Profil speichern</button>
+            </div>
+        </form>
+    </section>
+</div>
+
+<partial name="~/Views/Members/_PluginActionModal.cshtml" model="pluginSlots" />
+
+<div id="savingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-none" style="background: rgba(0, 0, 0, 0.45); z-index: 2000;">
+    <div class="h-100 d-flex justify-content-center align-items-center">
+        <div class="bg-white rounded shadow p-4 text-center" style="max-width: 340px;">
+            <div class="spinner-border text-primary mb-3" role="status"></div>
+            <h2 class="h6 mb-1">Profil wird gespeichert...</h2>
+            <p class="small text-muted mb-0">Bitte warten.</p>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+
+    <script>
+        const profileForm = document.getElementById("editProfileForm");
+        if (profileForm) {
+            profileForm.addEventListener("submit", function () {
+                const overlay = document.getElementById("savingOverlay");
+                if (overlay) {
+                    overlay.classList.remove("d-none");
+                }
+            });
+        }
+
+        function uploadProfileImage() {
+            const fileInput = document.getElementById("profileImageUpload");
+            const file = fileInput?.files?.[0];
+            if (!file) {
+                return;
+            }
+
+            const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
+            if (!allowedTypes.includes(file.type)) {
+                alert("Ungueltiger Dateityp. Erlaubt sind JPG, PNG, GIF und WebP.");
+                fileInput.value = "";
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                alert("Die Datei ist zu gross. Maximal 5 MB sind erlaubt.");
+                fileInput.value = "";
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("profileImage", file);
+
+            const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+            fetch('/SelfService/UploadProfileImage', {
+                method: 'POST',
+                headers: {
+                    RequestVerificationToken: token ?? ""
+                },
+                body: formData
+            })
+                .then(async response => {
+                    const payload = await response.json();
+                    if (!response.ok || !payload.success) {
+                        throw new Error(payload.message || "Upload fehlgeschlagen.");
+                    }
+
+                    alert(payload.message || "Profilbild erfolgreich hochgeladen.");
+                    location.reload();
+                })
+                .catch(error => {
+                    alert(error.message || "Beim Upload ist ein Fehler aufgetreten.");
+                })
+                .finally(() => {
+                    fileInput.value = "";
+                });
+        }
+
+        function deleteProfileImage() {
+            if (!confirm("Profilbild wirklich loeschen?")) {
+                return;
+            }
+
+            const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+            fetch('/SelfService/DeleteProfileImage', {
+                method: 'POST',
+                headers: {
+                    RequestVerificationToken: token ?? ""
+                }
+            })
+                .then(async response => {
+                    const payload = await response.json();
+                    if (!response.ok || !payload.success) {
+                        throw new Error(payload.message || "Loeschen fehlgeschlagen.");
+                    }
+
+                    alert(payload.message || "Profilbild erfolgreich geloescht.");
+                    location.reload();
+                })
+                .catch(error => {
+                    alert(error.message || "Beim Loeschen ist ein Fehler aufgetreten.");
+                });
+        }
+
+        let addressIndex = @Model.Addresses.Count;
+
+        function addAddress() {
+            const container = document.getElementById("addressesContainer");
+            const emptyHint = document.getElementById("addressesEmptyHint");
+            if (emptyHint) {
+                emptyHint.remove();
+            }
+
+            const html = `
+                <div class="border rounded p-3 mb-3 selfservice-address-row">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <strong>Adresse ${addressIndex + 1}</strong>
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeAddress(this)">Entfernen</button>
+                    </div>
+
+                    <input type="hidden" name="Addresses[${addressIndex}].Id" value="0" />
+
+                    <div class="row g-2">
+                        <div class="col-md-12">
+                            <label class="form-label">Strasse</label>
+                            <input class="form-control" name="Addresses[${addressIndex}].Street" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">PLZ</label>
+                            <input class="form-control" name="Addresses[${addressIndex}].PostalCode" />
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label">Stadt</label>
+                            <input class="form-control" name="Addresses[${addressIndex}].City" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Land</label>
+                            <input class="form-control" name="Addresses[${addressIndex}].Country" />
+                        </div>
+                        <div class="col-12">
+                            <input type="hidden" name="Addresses[${addressIndex}].IsDefault" value="false" />
+                            <div class="form-check mt-1">
+                                <input class="form-check-input" type="checkbox" name="Addresses[${addressIndex}].IsDefault" value="true" />
+                                <label class="form-check-label">Standardadresse</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+
+            container.insertAdjacentHTML("beforeend", html);
+            addressIndex++;
+        }
+
+        function removeAddress(button) {
+            const row = button.closest(".selfservice-address-row");
+            if (row) {
+                row.remove();
+            }
+
+            const container = document.getElementById("addressesContainer");
+            if (container && container.querySelectorAll(".selfservice-address-row").length === 0) {
+                container.insertAdjacentHTML("beforeend", '<p class="text-muted" id="addressesEmptyHint">Noch keine Adresse eingetragen.</p>');
+            }
+        }
+    </script>
+}

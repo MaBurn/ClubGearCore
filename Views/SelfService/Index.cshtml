@@ -1,0 +1,152 @@
+@model ClubGear.Models.Member?
+@using ClubGear.Services.Abstractions
+@{
+    ViewData["Title"] = "Selfservice";
+
+    var initials = Model is null
+        ? "CG"
+        : string.Join(string.Empty, Model.FullName
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Take(2)
+            .Select(part => char.ToUpperInvariant(part[0])));
+
+    var communicationChannels = Model is null
+        ? Array.Empty<string>()
+        : new[]
+        {
+            Model.NotifyViaEmail ? "E-Mail" : null,
+            Model.NotifyViaMatrix ? "Matrix" : null
+        }.Where(channel => channel is not null).Cast<string>().ToArray();
+
+    var pluginSlots = ViewData["MemberPluginSlots"] as MemberPluginSlotSnapshot
+                      ?? MemberPluginSlotSnapshot.Empty;
+}
+
+<div class="cg-page cg-page--selfservice selfservice-dashboard">
+    <section class="cg-page-section">
+        @if (Model is null)
+        {
+            <div class="selfservice-dashboard-empty cg-panel">
+                <div class="selfservice-dashboard-empty__icon" aria-hidden="true">
+                    <i class="bi bi-person-link"></i>
+                </div>
+                <div>
+                    <p class="selfservice-dashboard__eyebrow">Mein ClubGear</p>
+                    <h1 class="selfservice-dashboard__title">Mitgliedschaft noch nicht verknüpft</h1>
+                    <p class="selfservice-dashboard__copy">
+                        Zu deinem Konto wurde noch kein Mitgliedsdatensatz gefunden. Sobald die Verknüpfung hergestellt ist,
+                        kannst du hier deine Daten und Selfservice-Funktionen verwalten.
+                    </p>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="selfservice-dashboard-hero cg-panel">
+                <div class="selfservice-dashboard-hero__identity">
+                    @if (!string.IsNullOrWhiteSpace(Model.ProfileImagePath))
+                    {
+                        <img class="selfservice-dashboard-avatar" src="@Model.ProfileImagePath" alt="" />
+                    }
+                    else
+                    {
+                        <div class="selfservice-dashboard-avatar selfservice-dashboard-avatar--initials" aria-hidden="true">
+                            @initials
+                        </div>
+                    }
+
+                    <div>
+                        <p class="selfservice-dashboard__eyebrow">Mein ClubGear</p>
+                        <h1 class="selfservice-dashboard__title">Hallo @Model.FirstName!</h1>
+                        <p class="selfservice-dashboard__copy">
+                            Hier findest du deine Mitgliedschaft und kannst deine persönlichen Daten aktuell halten.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="selfservice-dashboard-hero__action">
+                    <a class="btn btn-primary btn-lg" asp-action="Profile">
+                        <i class="bi bi-pencil-square me-2" aria-hidden="true"></i>Profil verwalten
+                    </a>
+                </div>
+            </div>
+
+            <div class="selfservice-dashboard-grid">
+                <section class="selfservice-dashboard-card selfservice-dashboard-card--membership cg-panel">
+                    <div class="selfservice-dashboard-card__header">
+                        <div>
+                            <p class="selfservice-dashboard__eyebrow">Mitgliedschaft</p>
+                            <h2 class="selfservice-dashboard-card__title">@Model.FullName</h2>
+                        </div>
+                        <span class="selfservice-status @(Model.IsActive ? "selfservice-status--active" : "selfservice-status--inactive")">
+                            <span class="selfservice-status__dot" aria-hidden="true"></span>
+                            @(Model.IsActive ? "Aktiv" : "Inaktiv")
+                        </span>
+                    </div>
+
+                    <dl class="selfservice-dashboard-details">
+                        <div>
+                            <dt>Mitgliedsnummer</dt>
+                            <dd>@Model.MemberNumber</dd>
+                        </div>
+                        <div>
+                            <dt>Mitglied seit</dt>
+                            <dd>@Model.JoinedAt.ToLocalTime().ToString("dd.MM.yyyy")</dd>
+                        </div>
+                        <div>
+                            <dt>E-Mail</dt>
+                            <dd>@(string.IsNullOrWhiteSpace(Model.Email) ? "Nicht hinterlegt" : Model.Email)</dd>
+                        </div>
+                        <div>
+                            <dt>Zuletzt aktualisiert</dt>
+                            <dd>@(Model.LastUpdated?.ToLocalTime().ToString("dd.MM.yyyy, HH:mm") ?? "Noch nicht erfasst")</dd>
+                        </div>
+                    </dl>
+                </section>
+
+                <aside class="selfservice-dashboard-side">
+                    <section class="selfservice-dashboard-card cg-panel">
+                        <div class="selfservice-dashboard-card__icon selfservice-dashboard-card__icon--privacy" aria-hidden="true">
+                            <i class="bi bi-shield-check"></i>
+                        </div>
+                        <p class="selfservice-dashboard__eyebrow">Datenschutz</p>
+                        <h2 class="selfservice-dashboard-card__title">
+                            @(Model.DataprivacyAccepted ? "Bestätigt" : "Noch offen")
+                        </h2>
+                        <p class="selfservice-dashboard-card__copy">
+                            @(Model.DataprivacyAccepted
+                                ? "Deine Datenschutzeinwilligung ist hinterlegt."
+                                : "Bitte prüfe deine Datenschutzeinstellungen im Profil.")
+                        </p>
+                    </section>
+
+                    <section class="selfservice-dashboard-card cg-panel">
+                        <div class="selfservice-dashboard-card__icon" aria-hidden="true">
+                            <i class="bi bi-bell"></i>
+                        </div>
+                        <p class="selfservice-dashboard__eyebrow">Benachrichtigungen</p>
+                        <h2 class="selfservice-dashboard-card__title">
+                            @(communicationChannels.Length == 0 ? "Keine Kanäle aktiv" : string.Join(" & ", communicationChannels))
+                        </h2>
+                        <p class="selfservice-dashboard-card__copy">
+                            Du kannst deine Kontaktdaten und Kommunikationswege jederzeit im Profil anpassen.
+                        </p>
+                    </section>
+                </aside>
+            </div>
+
+            @if (pluginSlots.DetailCards.Count > 0)
+            {
+                <section class="selfservice-dashboard-plugins cg-panel mt-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h2 class="h5 mb-0">Plugin-Daten</h2>
+                        <a asp-action="Profile" class="btn btn-outline-primary btn-sm">
+                            Profil verwalten
+                        </a>
+                    </div>
+                    <partial name="~/Views/Members/_PluginSlots.cshtml" model="pluginSlots" />
+                </section>
+            }
+        }
+    </section>
+</div>
