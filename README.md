@@ -147,4 +147,3 @@ See `docs/architecture/runtime-deployment.md` for the detailed runtime and deplo
 - [Runtime and Deployment](docs/architecture/runtime-deployment.md)
 - [Plugin Authoring Guide](docs/architecture/plugin-authoring-guide.md)
 - [Plugin Boundary and Compliance](docs/architecture/plugin-boundary-and-compliance.md)
-- [Public Publication Allowlist](docs/publication-allowlist.md)
