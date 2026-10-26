@@ -11,6 +11,8 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       Plugins__Enabled: "true"
       Plugins__ZipUpload__Enabled: "true"
+      # Throwaway container: seed the demo roster so the UI has something to show.
+      ClubGear__SeedDemoData: "true"
     ports:
       - "5080:8080"
 
@@ -24,6 +26,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Staging
       Plugins__Enabled: "true"
       Plugins__ZipUpload__Enabled: "false"
+      ClubGear__SeedDemoData: "false"
     ports:
       - "5081:8080"
 
@@ -37,5 +40,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       Plugins__Enabled: "false"
       Plugins__ZipUpload__Enabled: "false"
+      # Never enable against real member data.
+      ClubGear__SeedDemoData: "false"
     ports:
       - "5082:8080"

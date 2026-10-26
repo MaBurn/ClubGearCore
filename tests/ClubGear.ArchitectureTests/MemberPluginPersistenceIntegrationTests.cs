@@ -29,6 +29,8 @@ public sealed class MemberPluginPersistenceIntegrationTests
         var lifecycleService = CreateLifecycleService(fixture, registry);
         var slotService = new MemberPluginSlotService(
             registry,
+            Plugins.TestContributionActivatorFactory.Create(
+                registry, CreateRuntimeAdapter(fixture.DbContext, fixture.MemberService)),
             CreateRuntimeAdapter(fixture.DbContext, fixture.MemberService),
             fixture.MemberService,
             NullLogger<MemberPluginSlotService>.Instance);
@@ -61,6 +63,8 @@ public sealed class MemberPluginPersistenceIntegrationTests
         var lifecycleService = CreateLifecycleService(fixture, registry);
         var slotService = new MemberPluginSlotService(
             registry,
+            Plugins.TestContributionActivatorFactory.Create(
+                registry, CreateRuntimeAdapter(fixture.DbContext, fixture.MemberService)),
             CreateRuntimeAdapter(fixture.DbContext, fixture.MemberService),
             fixture.MemberService,
             NullLogger<MemberPluginSlotService>.Instance);

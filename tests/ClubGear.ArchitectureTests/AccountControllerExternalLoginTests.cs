@@ -146,6 +146,23 @@ public sealed class AccountControllerExternalLoginTests
     }
 
     [Fact]
+    public async Task ExternalLoginChallenge_UsesCanonicalSchemeFromServiceProperties()
+    {
+        var properties = new AuthenticationProperties();
+        properties.Items["LoginProvider"] = "oidc.keycloak";
+        var loginSvc = new StubExternalLoginService
+        {
+            ChallengeProperties = properties
+        };
+        using var controller = CreateController(loginSvc: loginSvc);
+
+        var result = await controller.ExternalLoginChallenge("KEYCLOAK");
+
+        var challenge = Assert.IsType<ChallengeResult>(result);
+        Assert.Equal(["oidc.keycloak"], challenge.AuthenticationSchemes);
+    }
+
+    [Fact]
     public async Task ExternalLoginChallenge_ReturnsBadRequest_WhenServiceReturnsNull()
     {
         var loginSvc = new StubExternalLoginService

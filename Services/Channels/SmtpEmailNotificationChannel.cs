@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Mail;
 using ClubGear.Models;
 using ClubGear.Services.Abstractions;
+using MimeKit;
 
 namespace ClubGear.Services.Channels;
 
@@ -11,11 +12,16 @@ public class SmtpEmailNotificationChannel : INotificationChannel
     private const string EmailSection = "Email";
 
     private readonly ISystemConfigService _systemConfigService;
+    private readonly IImapMailboxService _imapMailboxService;
     private readonly ILogger<SmtpEmailNotificationChannel> _logger;
 
-    public SmtpEmailNotificationChannel(ISystemConfigService systemConfigService, ILogger<SmtpEmailNotificationChannel> logger)
+    public SmtpEmailNotificationChannel(
+        ISystemConfigService systemConfigService,
+        IImapMailboxService imapMailboxService,
+        ILogger<SmtpEmailNotificationChannel> logger)
     {
         _systemConfigService = systemConfigService;
+        _imapMailboxService = imapMailboxService;
         _logger = logger;
     }
 
@@ -42,6 +48,7 @@ public class SmtpEmailNotificationChannel : INotificationChannel
 
                 using var mail = BuildMessage(cfg, message);
                 await client.SendMailAsync(mail, cancellationToken);
+                await MirrorToSentFolderAsync(cfg, message, cancellationToken);
                 return new NotificationResult(true, ChannelName, message.Recipient);
             }
 
@@ -57,6 +64,7 @@ public class SmtpEmailNotificationChannel : INotificationChannel
                 await client.SendMailAsync(mail, cancellationToken);
             }
 
+            await MirrorToSentFolderAsync(cfg, message, cancellationToken);
             return new NotificationResult(true, ChannelName, message.Recipient);
         }
         catch (Exception ex)
@@ -79,9 +87,13 @@ public class SmtpEmailNotificationChannel : INotificationChannel
         var password = await _systemConfigService.GetValueAsync(EmailSection, nameof(EmailSettings.Password), cancellationToken);
         var usePickupDirectoryValue = await _systemConfigService.GetValueAsync(EmailSection, nameof(EmailSettings.UsePickupDirectory), cancellationToken);
         var pickupDirectory = await _systemConfigService.GetValueAsync(EmailSection, nameof(EmailSettings.PickupDirectory), cancellationToken) ?? defaults.PickupDirectory;
+        var imapHost = await _systemConfigService.GetValueAsync(EmailSection, nameof(EmailSettings.ImapHost), cancellationToken);
+        var appendSentValue = await _systemConfigService.GetValueAsync(EmailSection, nameof(EmailSettings.AppendSentEnabled), cancellationToken);
 
         return new EmailSettings
         {
+            ImapHost = string.IsNullOrWhiteSpace(imapHost) ? defaults.ImapHost : imapHost.Trim(),
+            AppendSentEnabled = bool.TryParse(appendSentValue, out var appendSentEnabled) && appendSentEnabled,
             SenderName = string.IsNullOrWhiteSpace(senderName) ? defaults.SenderName : senderName,
             SenderAddress = string.IsNullOrWhiteSpace(senderAddress) ? defaults.SenderAddress : senderAddress,
             Host = string.IsNullOrWhiteSpace(host) ? defaults.Host : host,
@@ -92,6 +104,42 @@ public class SmtpEmailNotificationChannel : INotificationChannel
             UsePickupDirectory = bool.TryParse(usePickupDirectoryValue, out var usePickupDirectory) ? usePickupDirectory : defaults.UsePickupDirectory,
             PickupDirectory = string.IsNullOrWhiteSpace(pickupDirectory) ? defaults.PickupDirectory : pickupDirectory
         };
+    }
+
+    /// <summary>
+    /// Best-effort copy of a just-sent mail into the IMAP Sent folder. Never fails the send:
+    /// the message is already on its way when this runs.
+    /// </summary>
+    private async Task MirrorToSentFolderAsync(EmailSettings cfg, NotificationMessage message, CancellationToken cancellationToken)
+    {
+        if (!cfg.AppendSentEnabled || string.IsNullOrWhiteSpace(cfg.ImapHost))
+        {
+            return;
+        }
+
+        try
+        {
+            using var mime = BuildSentMirror(cfg, message);
+            await _imapMailboxService.AppendToSentAsync(mime, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Kopie in den Gesendet-Ordner fehlgeschlagen fuer {Recipient}", message.Recipient);
+        }
+    }
+
+    private static MimeMessage BuildSentMirror(EmailSettings cfg, NotificationMessage message)
+    {
+        var mime = new MimeMessage
+        {
+            Subject = message.Subject,
+            Date = DateTimeOffset.UtcNow
+        };
+
+        mime.From.Add(new MailboxAddress(cfg.SenderName, cfg.SenderAddress));
+        mime.To.Add(MailboxAddress.Parse(message.Recipient));
+        mime.Body = new BodyBuilder { HtmlBody = message.Body }.ToMessageBody();
+        return mime;
     }
 
     private static MailMessage BuildMessage(EmailSettings cfg, NotificationMessage message)

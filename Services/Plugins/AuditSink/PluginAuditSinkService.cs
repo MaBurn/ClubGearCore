@@ -6,13 +6,16 @@ namespace ClubGear.Services.Plugins.AuditSink;
 public sealed class PluginAuditSinkService : IPluginAuditSinkService
 {
     private readonly IPluginRegistryReader _registryReader;
+    private readonly IPluginContributionActivator _contributionActivator;
     private readonly ILogger<PluginAuditSinkService> _logger;
 
     public PluginAuditSinkService(
         IPluginRegistryReader registryReader,
+        IPluginContributionActivator contributionActivator,
         ILogger<PluginAuditSinkService> logger)
     {
         _registryReader = registryReader;
+        _contributionActivator = contributionActivator;
         _logger = logger;
     }
 
@@ -22,11 +25,18 @@ public sealed class PluginAuditSinkService : IPluginAuditSinkService
         {
             foreach (var contribution in runtime.AuditSinks)
             {
-                var provider = _registryReader.CreateMemberProvider<IAuditSinkProvider>(
+                await using var lease = _contributionActivator.Rent<IAuditSinkProvider>(
                     runtime.ModuleId, contribution.ProviderType);
 
-                if (provider is null)
+                if (lease.Instance is not { } provider)
                 {
+                    // CORE-18. A sink that cannot be rented is still skipped — one broken plugin
+                    // must not swallow the audit event for the others — but no longer silently.
+                    _logger.LogWarning(
+                        "Audit-Sink '{ProviderType}' (Plugin '{ModuleId}') wurde uebersprungen: {Reason}",
+                        contribution.ProviderType,
+                        runtime.ModuleId,
+                        lease.Error);
                     continue;
                 }
 

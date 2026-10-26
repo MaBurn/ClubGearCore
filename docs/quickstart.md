@@ -75,6 +75,26 @@ http://localhost:5007
 
 The development profile uses `appsettings.Development.json` and the local SQLite database `clubmanagerv0_2.dev.db`. On first startup, ClubGear creates or patches the schema through `ApplicationSeeder`.
 
+## Demo Data
+
+A fresh database holds one placeholder member, which makes the list, filter and hierarchy views hard to judge. An optional demo roster — 30 fictional members across the system membership types plus Jugend, Passiv and Ehrenmitglied, including three families with sub-members, two departed members and one deceased — is seeded on startup when you switch it on:
+
+```json
+"ClubGear": {
+  "SeedDemoData": true
+}
+```
+
+For containers, set the environment variable instead — this is what the `local` profile in `docker-compose.yml` does:
+
+```bash
+ClubGear__SeedDemoData=true
+```
+
+Seeding runs once: it stops as soon as member `M-1001` exists, so restarting does not duplicate anything. It adds nothing when the switch is off, and it never touches members that are already there.
+
+The data is invented — fictional names, `clubgear.local` e-mail addresses and phone numbers from the `030 23125` block reserved for film and television. Do not enable it against a database holding real members.
+
 ## Run Tests
 
 Run the architecture and behavior tests:
@@ -119,16 +139,18 @@ If Docker is your local engine, use:
 
 Release builds can be distributed as `clubgear-<version>.tar.gz` image archives. They do not require the target host to clone the repository or build the image.
 
+Substitute `<version>` with the version you downloaded, for example `2026.7.0`.
+
 ```bash
-docker load -i clubgear-2026.07-core.tar.gz
-docker run --rm -p 5080:8080 -e ASPNETCORE_ENVIRONMENT=Production clubgear:2026.07-core
+docker load -i clubgear-<version>.tar.gz
+docker run --rm -p 5080:8080 -e ASPNETCORE_ENVIRONMENT=Production clubgear:<version>
 ```
 
 With Podman:
 
 ```bash
-podman load -i clubgear-2026.07-core.tar.gz
-podman run --rm -p 5080:8080 -e ASPNETCORE_ENVIRONMENT=Production clubgear:2026.07-core
+podman load -i clubgear-<version>.tar.gz
+podman run --rm -p 5080:8080 -e ASPNETCORE_ENVIRONMENT=Production clubgear:<version>
 ```
 
 See [Releases](releases.md) for version history, checksums and release artifact conventions.

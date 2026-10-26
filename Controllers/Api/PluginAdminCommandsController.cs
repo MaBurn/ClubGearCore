@@ -28,6 +28,7 @@ public sealed class PluginAdminCommandsController : ControllerBase
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Execute(
         [FromBody] PluginAdminCommandExecutionRequest request,
         CancellationToken cancellationToken = default)

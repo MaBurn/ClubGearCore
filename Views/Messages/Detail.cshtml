@@ -1,0 +1,96 @@
+@using ClubGear.Controllers
+@using ClubGear.Models
+@model MessageThreadViewModel
+@{
+    var thread = Model.Detail.Thread;
+    var messages = Model.Detail.Messages;
+    ViewData["Title"] = thread.Subject;
+}
+
+<div class="cg-page">
+    <a class="btn btn-link px-0 mb-2" asp-action="Index">
+        <i class="bi bi-chevron-left"></i> Zurück zum Posteingang
+    </a>
+
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <h1 class="cg-page-title mb-0">@thread.Subject</h1>
+        @if (thread.Kind == MessageThreadKinds.Notification)
+        {
+            <span class="badge text-bg-light border">Benachrichtigung</span>
+        }
+        @if (thread.IsClosed)
+        {
+            <span class="badge text-bg-light border">geschlossen</span>
+        }
+    </div>
+
+    @if (TempData["MessageError"] is string error)
+    {
+        <div class="alert alert-danger" role="alert">@error</div>
+    }
+
+    <div class="card shadow-sm mb-3">
+        <ul class="list-group list-group-flush">
+            @if (messages.Count == 0)
+            {
+                <li class="list-group-item text-muted text-center py-4">Noch keine Nachrichten.</li>
+            }
+            @foreach (var message in messages)
+            {
+                var isMine = message.AuthorKind == MessageAuthorKinds.Member
+                             && message.AuthorMemberId == Model.CurrentMemberId;
+                <li class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-baseline gap-2 mb-1">
+                        <span class="small fw-semibold">
+                            @if (isMine)
+                            {
+                                <span>Du</span>
+                            }
+                            else if (message.AuthorKind == MessageAuthorKinds.Member)
+                            {
+                                <span>Mitglied @message.AuthorMemberId</span>
+                            }
+                            else if (message.AuthorKind == MessageAuthorKinds.Service)
+                            {
+                                <span>Dienst</span>
+                            }
+                            else
+                            {
+                                <span>System</span>
+                            }
+                        </span>
+                        <span class="text-muted small">@message.CreatedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</span>
+                    </div>
+                    @* Plain text: the body is member-supplied and is never rendered as markup. *@
+                    <div class="mb-0" style="white-space: pre-wrap;">@message.Body</div>
+                </li>
+            }
+        </ul>
+    </div>
+
+    @if (Model.Detail.CanPost)
+    {
+        <form method="post" asp-action="Reply" asp-route-threadId="@thread.Id" class="card shadow-sm">
+            <div class="card-body">
+                <label for="replyBody" class="form-label">Antworten</label>
+                <textarea id="replyBody" name="body" class="form-control" rows="3"
+                          placeholder="Nachricht schreiben…" required></textarea>
+            </div>
+            <div class="card-footer text-end bg-transparent">
+                <button type="submit" class="btn btn-primary">Senden</button>
+            </div>
+        </form>
+    }
+    else if (thread.Kind == MessageThreadKinds.Notification)
+    {
+        <p class="text-muted small mb-0">
+            <i class="bi bi-info-circle me-1"></i>Auf Benachrichtigungen kann nicht geantwortet werden.
+        </p>
+    }
+    else if (thread.IsClosed)
+    {
+        <p class="text-muted small mb-0">
+            <i class="bi bi-lock me-1"></i>Diese Unterhaltung ist geschlossen.
+        </p>
+    }
+</div>

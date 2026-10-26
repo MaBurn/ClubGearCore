@@ -21,6 +21,8 @@ public sealed class CreateMembershipTypeInputModel
     public bool IsActive { get; set; } = true;
     public bool AllowsSubMembers { get; set; }
     public string? SubMemberLabel { get; set; }
+    public decimal? FeeAmount { get; set; }
+    public string? BillingInterval { get; set; }
 }
 
 public sealed class UpdateMembershipTypeInputModel
@@ -33,6 +35,8 @@ public sealed class UpdateMembershipTypeInputModel
     public bool IsActive { get; set; }
     public bool AllowsSubMembers { get; set; }
     public string? SubMemberLabel { get; set; }
+    public decimal? FeeAmount { get; set; }
+    public string? BillingInterval { get; set; }
 }
 
 public sealed class CreateMembershipTypeFieldInputModel

@@ -51,6 +51,10 @@ public class ApplicationSeeder : IApplicationSeeder
         await AddPluginDependencies_202606300101.ApplyAsync(dbContext, cancellationToken);
         await AddMembershipTypeModel_202607070101.ApplyAsync(dbContext, cancellationToken);
         await AddSubMemberHierarchy_202607080101.ApplyAsync(dbContext, cancellationToken);
+        await AddMembershipTypeFee_202607150101.ApplyAsync(dbContext, cancellationToken);
+        await AddMemberEmailInvalidState_202607240101.ApplyAsync(dbContext, cancellationToken);
+        await AddApiKeys_202608310101.ApplyAsync(dbContext, cancellationToken);
+        await AddMessageSubstrate_202608310201.ApplyAsync(dbContext, cancellationToken);
     }
 
     private static async Task EnsureSystemConfigTableAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)

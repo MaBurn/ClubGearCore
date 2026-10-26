@@ -24,6 +24,11 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<MembershipType> MembershipTypes => Set<MembershipType>();
     public DbSet<MembershipTypeField> MembershipTypeFields => Set<MembershipTypeField>();
     public DbSet<MemberMetadataValue> MemberMetadataValues => Set<MemberMetadataValue>();
+    public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
+    public DbSet<MessageThread> MessageThreads => Set<MessageThread>();
+    public DbSet<Message> Messages => Set<Message>();
+    public DbSet<MessageParticipant> MessageParticipants => Set<MessageParticipant>();
+    public DbSet<PluginPageColumnPreference> PluginPageColumnPreferences => Set<PluginPageColumnPreference>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -55,6 +60,10 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .HasIndex(entry => new { entry.Section, entry.Name })
             .IsUnique();
 
+        builder.Entity<PluginPageColumnPreference>()
+            .HasIndex(p => new { p.UserId, p.ModuleId, p.PageKey })
+            .IsUnique();
+
         builder.Entity<Member>()
             .HasIndex(m => m.MemberNumber)
             .IsUnique();
@@ -84,6 +93,17 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<MembershipType>()
             .Property(t => t.AllowsSubMembers)
             .HasDefaultValue(false);
+
+        // Per-type recurring fee. Nullable decimal with currency precision so EnsureCreated's
+        // schema matches the idempotent migration (Data/Migrations/202607150101_AddMembershipTypeFee.cs,
+        // ADD COLUMN FeeAmount TEXT NULL). On SQLite decimals map to a TEXT column.
+        builder.Entity<MembershipType>()
+            .Property(t => t.FeeAmount)
+            .HasPrecision(18, 2);
+
+        builder.Entity<MembershipType>()
+            .Property(t => t.BillingInterval)
+            .HasMaxLength(20);
 
         builder.Entity<MembershipTypeField>()
             .HasIndex(f => new { f.MembershipTypeId, f.Key })

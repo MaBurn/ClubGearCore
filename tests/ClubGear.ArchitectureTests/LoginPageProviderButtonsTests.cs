@@ -23,9 +23,11 @@ public sealed class LoginPageProviderButtonsTests
 
     private sealed class StubAccountFeatureService : IAccountFeatureService
     {
+        public AccountLoginStatus LoginStatus { get; init; } = AccountLoginStatus.Success;
+
         public Task<AccountLoginOutcome> LoginAsync(string email, string password,
             CancellationToken ct = default)
-            => Task.FromResult(new AccountLoginOutcome(AccountLoginStatus.Success));
+            => Task.FromResult(new AccountLoginOutcome(LoginStatus));
 
         public Task<AccountRegistrationOutcome> RegisterAsync(string fullName, string email,
             string password, CancellationToken ct = default)
@@ -78,10 +80,12 @@ public sealed class LoginPageProviderButtonsTests
         public string? RouteUrl(UrlRouteContext routeContext) => null;
     }
 
-    private static AccountController CreateController(StubExternalLoginService loginSvc)
+    private static AccountController CreateController(
+        StubExternalLoginService loginSvc,
+        StubAccountFeatureService? accountSvc = null)
     {
         var ctrl = new AccountController(
-            new StubAccountFeatureService(),
+            accountSvc ?? new StubAccountFeatureService(),
             loginSvc);
 
         var httpCtx = new DefaultHttpContext();
@@ -151,6 +155,34 @@ public sealed class LoginPageProviderButtonsTests
         Assert.Equal("/dashboard", viewResult.ViewData["ReturnUrl"]);
     }
 
+    [Fact]
+    public async Task Login_POST_InvalidCredentials_KeepsExternalProviderButtonsAvailable()
+    {
+        var provider = new ExternalProviderInfo(
+            "keycloak",
+            "Keycloak",
+            "clubgear.plugin.iam",
+            IsEnabled: true);
+        var loginSvc = new StubExternalLoginService { ActiveProviders = [provider] };
+        var accountSvc = new StubAccountFeatureService
+        {
+            LoginStatus = AccountLoginStatus.InvalidCredentials
+        };
+        using var controller = CreateController(loginSvc, accountSvc);
+
+        var result = await controller.Login(
+            "member@example.test",
+            "invalid",
+            returnUrl: "/SelfService");
+
+        var view = Assert.IsType<ViewResult>(result);
+        var providers = Assert.IsAssignableFrom<IReadOnlyList<ExternalProviderInfo>>(
+            view.ViewData["ActiveProviders"]);
+        Assert.Single(providers);
+        Assert.Equal("keycloak", providers[0].ProviderKey);
+        Assert.Equal("/SelfService", view.ViewData["ReturnUrl"]);
+    }
+
     // ------------------------------------------------------------------
     // 10.3 — WebApplicationFactory integration test
     // ------------------------------------------------------------------
@@ -180,14 +212,6 @@ public sealed class LoginPageProviderButtonsTests
                             ActiveProviders = Array.Empty<ExternalProviderInfo>()
                         });
 
-                    // Remove the OIDC handler to avoid ClientId validation errors
-                    // when no provider is configured in the test DB.
-                    var oidcDescriptors = services
-                        .Where(d => d.ServiceType.FullName != null
-                                    && d.ServiceType.FullName.Contains("OpenIdConnect"))
-                        .ToList();
-                    foreach (var d in oidcDescriptors)
-                        services.Remove(d);
                 });
                 builder.UseSetting(
                     "ConnectionStrings:DefaultConnection",

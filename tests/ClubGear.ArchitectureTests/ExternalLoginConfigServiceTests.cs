@@ -1,7 +1,10 @@
 using ClubGear.Models;
+using ClubGear.ArchitectureTests.Plugins;
 using ClubGear.Plugin.Contracts;
 using ClubGear.Services.Abstractions;
 using ClubGear.Services.ExternalLogin;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace ClubGear.ArchitectureTests;
@@ -81,11 +84,11 @@ public sealed class ExternalLoginConfigServiceTests
 
         public IPluginModule? GetModule(string moduleId) => null;
 
-        public TProvider? CreateMemberProvider<TProvider>(string moduleId, string providerType)
-            where TProvider : class
-        {
-            return _pluginFactory(moduleId, providerType) as TProvider;
-        }
+        public Type? ResolveContributionType(string moduleId, string contributionType) => null;
+
+        /// <summary>CORE-18. Feeds <see cref="StubPluginContributionActivator"/>.</summary>
+        public object? CreateProvider(string moduleId, string providerType)
+            => _pluginFactory(moduleId, providerType);
     }
 
     // ---------------------------------------------------------------
@@ -115,8 +118,13 @@ public sealed class ExternalLoginConfigServiceTests
 
     private static ExternalLoginConfigService Create(
         StubSystemConfigService configService,
-        StubRegistryReader registryReader)
-        => new ExternalLoginConfigService(configService, registryReader);
+        StubRegistryReader registryReader,
+        IOptionsMonitorCache<OpenIdConnectOptions>? optionsCache = null)
+        => new ExternalLoginConfigService(
+            configService,
+            registryReader,
+            new StubPluginContributionActivator(registryReader.CreateProvider),
+            optionsCache);
 
     // ---------------------------------------------------------------
     // GetConfigAsync tests
@@ -212,6 +220,70 @@ public sealed class ExternalLoginConfigServiceTests
             Assert.Equal(expected, loaded[name]);
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task SaveConfigAsync_PreservesStoredSecret_WhenPostedValueIsBlank(string postedSecret)
+    {
+        var config = new StubSystemConfigService(new Dictionary<(string, string), string>
+        {
+            { ("externallogin.myprovider", "clientsecret"), "stored-secret" },
+        });
+        var runtime = MakeRuntime("plugin.idp", new[]
+        {
+            new PluginIdentityProviderContribution("myprovider", "MyIdpPlugin"),
+        });
+        var plugin = new FakeIdentityProviderPlugin("myprovider", "My Provider");
+        var registry = new StubRegistryReader([runtime], (_, _) => plugin);
+        var sut = Create(config, registry);
+
+        await sut.SaveConfigAsync("myprovider", new Dictionary<string, string>
+        {
+            ["clientsecret"] = postedSecret,
+            ["clientid"] = "new-client",
+        });
+
+        var saved = await sut.GetConfigAsync("myprovider");
+        Assert.Equal("stored-secret", saved["clientsecret"]);
+        Assert.Equal("new-client", saved["clientid"]);
+    }
+
+    [Fact]
+    public async Task SaveConfigAsync_PreservesCoreClientSecret_WhenPluginIsUnavailable()
+    {
+        var config = new StubSystemConfigService(new Dictionary<(string, string), string>
+        {
+            { ("externallogin.myprovider", "clientsecret"), "stored-secret" },
+        });
+        var sut = Create(
+            config,
+            new StubRegistryReader(Array.Empty<RegisteredPluginRuntime>()));
+
+        await sut.SaveConfigAsync("myprovider", new Dictionary<string, string>
+        {
+            ["clientsecret"] = string.Empty,
+        });
+
+        Assert.Equal("stored-secret", (await sut.GetConfigAsync("myprovider"))["clientsecret"]);
+        Assert.Empty(config.UpsertCalls);
+    }
+
+    [Fact]
+    public async Task SaveConfigAsync_InvalidatesNamedOidcOptions()
+    {
+        var config = new StubSystemConfigService();
+        var registry = new StubRegistryReader(Array.Empty<RegisteredPluginRuntime>());
+        var optionsCache = new TrackingOptionsCache();
+        var sut = Create(config, registry, optionsCache);
+
+        await sut.SaveConfigAsync("keycloak", new Dictionary<string, string>
+        {
+            ["authority"] = "https://idp.example.com",
+        });
+
+        Assert.Equal("oidc.keycloak", optionsCache.RemovedName);
+    }
+
     // ---------------------------------------------------------------
     // GetAllDeclaredProvidersAsync tests
     // ---------------------------------------------------------------
@@ -244,6 +316,7 @@ public sealed class ExternalLoginConfigServiceTests
         Assert.Single(result);
         Assert.Equal("myprovider",  result[0].ProviderKey);
         Assert.Equal("plugin.idp",  result[0].ModuleId);
+        Assert.False(result[0].IsAvailable);
     }
 
     [Fact]
@@ -268,6 +341,7 @@ public sealed class ExternalLoginConfigServiceTests
 
         Assert.Single(result);
         Assert.Equal(expectedDisplayName, result[0].DisplayName);
+        Assert.True(result[0].IsAvailable);
     }
 
     [Fact]
@@ -336,6 +410,26 @@ public sealed class ExternalLoginConfigServiceTests
         Assert.Contains(result, p => p.ProviderKey == "provider-b" && p.ModuleId == "plugin.b");
     }
 
+    [Fact]
+    public async Task GetAllDeclaredProvidersAsync_MarksDuplicateKeysUnavailable()
+    {
+        var runtimeA = MakeRuntime("plugin.a",
+            [new PluginIdentityProviderContribution("shared", "ProviderTypeA")]);
+        var runtimeB = MakeRuntime("plugin.b",
+            [new PluginIdentityProviderContribution("SHARED", "ProviderTypeB")]);
+        var registry = new StubRegistryReader(
+            [runtimeA, runtimeB],
+            (_, providerType) => new FakeIdentityProviderPlugin(
+                providerType == "ProviderTypeA" ? "shared" : "SHARED",
+                providerType));
+        var sut = Create(new StubSystemConfigService(), registry);
+
+        var result = await sut.GetAllDeclaredProvidersAsync();
+
+        Assert.Equal(2, result.Count);
+        Assert.All(result, provider => Assert.False(provider.IsAvailable));
+    }
+
     // ---------------------------------------------------------------
     // TestConnectionAsync tests
     // ---------------------------------------------------------------
@@ -384,6 +478,38 @@ public sealed class ExternalLoginConfigServiceTests
         Assert.Equal("https://idp.example.com", fakePlugin.LastTestConfig["authority"]);
     }
 
+    [Fact]
+    public async Task TestConnectionAsync_ReturnsFailure_WhenPluginThrows()
+    {
+        var runtime = MakeRuntime("plugin.idp",
+            [new PluginIdentityProviderContribution("myprovider", "MyIdpPlugin")]);
+        var registry = new StubRegistryReader(
+            [runtime],
+            (_, _) => new ThrowingIdentityProviderPlugin());
+        var sut = Create(new StubSystemConfigService(), registry);
+
+        var result = await sut.TestConnectionAsync("myprovider");
+
+        Assert.False(result.Success);
+        Assert.NotNull(result.Message);
+    }
+
+    [Fact]
+    public async Task TestConnectionAsync_ReturnsFailure_WhenPluginReturnsNull()
+    {
+        var runtime = MakeRuntime("plugin.idp",
+            [new PluginIdentityProviderContribution("myprovider", "MyIdpPlugin")]);
+        var registry = new StubRegistryReader(
+            [runtime],
+            (_, _) => new NullResultIdentityProviderPlugin());
+        var sut = Create(new StubSystemConfigService(), registry);
+
+        var result = await sut.TestConnectionAsync("myprovider");
+
+        Assert.False(result.Success);
+        Assert.NotNull(result.Message);
+    }
+
     // ---------------------------------------------------------------
     // fake IIdentityProviderPlugin
     // ---------------------------------------------------------------
@@ -408,7 +534,7 @@ public sealed class ExternalLoginConfigServiceTests
         public IReadOnlyDictionary<string, string>? LastTestConfig { get; private set; }
 
         public IReadOnlyList<PluginFieldSchema> GetConfigSchema()
-            => Array.Empty<PluginFieldSchema>();
+            => [new PluginFieldSchema("clientsecret", "Client Secret", PluginSchemaFieldType.Secret)];
 
         public Task<PluginExternalLoginTestResult> TestConnectionAsync(
             IReadOnlyDictionary<string, string> config,
@@ -422,5 +548,59 @@ public sealed class ExternalLoginConfigServiceTests
             PluginExternalLoginContext context,
             CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<PluginClaimEntry>>(Array.Empty<PluginClaimEntry>());
+    }
+
+    private sealed class ThrowingIdentityProviderPlugin : IIdentityProviderPlugin
+    {
+        public string ProviderKey => "myprovider";
+        public string DisplayName => "Throwing provider";
+
+        public IReadOnlyList<PluginFieldSchema> GetConfigSchema() => [];
+
+        public Task<PluginExternalLoginTestResult> TestConnectionAsync(
+            IReadOnlyDictionary<string, string> config,
+            CancellationToken ct = default)
+            => throw new InvalidOperationException("test failure");
+
+        public Task<IReadOnlyList<PluginClaimEntry>> MapClaimsAsync(
+            PluginExternalLoginContext context,
+            CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<PluginClaimEntry>>([]);
+    }
+
+    private sealed class NullResultIdentityProviderPlugin : IIdentityProviderPlugin
+    {
+        public string ProviderKey => "myprovider";
+        public string DisplayName => "Null-result provider";
+
+        public IReadOnlyList<PluginFieldSchema> GetConfigSchema() => [];
+
+        public Task<PluginExternalLoginTestResult> TestConnectionAsync(
+            IReadOnlyDictionary<string, string> config,
+            CancellationToken ct = default)
+            => Task.FromResult<PluginExternalLoginTestResult>(null!);
+
+        public Task<IReadOnlyList<PluginClaimEntry>> MapClaimsAsync(
+            PluginExternalLoginContext context,
+            CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<PluginClaimEntry>>([]);
+    }
+
+    private sealed class TrackingOptionsCache : IOptionsMonitorCache<OpenIdConnectOptions>
+    {
+        public string? RemovedName { get; private set; }
+
+        public void Clear() { }
+
+        public OpenIdConnectOptions GetOrAdd(string? name, Func<OpenIdConnectOptions> createOptions)
+            => createOptions();
+
+        public bool TryAdd(string? name, OpenIdConnectOptions options) => true;
+
+        public bool TryRemove(string? name)
+        {
+            RemovedName = name;
+            return true;
+        }
     }
 }

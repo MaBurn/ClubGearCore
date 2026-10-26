@@ -6,8 +6,12 @@ namespace ClubGear.Services.Plugins.Persistence;
 
 public sealed class PluginSchemaNamePolicy
 {
+    // (?<!DO\s+)UPDATE excludes SQLite's upsert syntax, "INSERT INTO ... ON CONFLICT(...) DO
+    // UPDATE SET ..." — without the lookbehind, the UPDATE alternative matches "UPDATE SET" and
+    // captures the literal word "SET" as the table name, which then fails the prefix check for
+    // every plugin upsert (FinanceDataService.SetBudgetAsync and anything written the same way).
     private static readonly Regex TableReferencePattern = new(
-        @"(?:CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?|ALTER\s+TABLE|DROP\s+TABLE(?:\s+IF\s+EXISTS)?|INSERT\s+INTO|UPDATE|DELETE\s+FROM|FROM|JOIN)\s+(?<table>(?:""[^""]+""|\[[^\]]+\]|`[^`]+`|[A-Za-z_][A-Za-z0-9_]*))",
+        @"(?:CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?|ALTER\s+TABLE|DROP\s+TABLE(?:\s+IF\s+EXISTS)?|INSERT\s+INTO|(?<!DO\s+)UPDATE|DELETE\s+FROM|FROM|JOIN)\s+(?<table>(?:""[^""]+""|\[[^\]]+\]|`[^`]+`|[A-Za-z_][A-Za-z0-9_]*))",
         RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     public string GetTablePrefix(string moduleId)

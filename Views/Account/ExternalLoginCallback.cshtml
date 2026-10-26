@@ -12,6 +12,10 @@
             Ihr externes Konto (<strong>@ViewData["ExternalUserId"]</strong>) ist noch mit keinem
             ClubGear-Mitgliedskonto verkn&uuml;pft.
         </p>
+        @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+        {
+            <p>@Model.ErrorMessage</p>
+        }
         <p>
             Bitte melden Sie sich zun&auml;chst mit Ihrem bestehenden Passwort an oder wenden Sie sich
             an Ihren Administrator, um die Verkn&uuml;pfung einzurichten.

@@ -11,21 +11,36 @@ namespace ClubGear.Services.Core;
 public sealed class MemberPluginSlotService : IMemberPluginSlotService
 {
     private readonly IPluginRegistryReader _pluginRegistryReader;
+    private readonly IPluginContributionActivator _contributionActivator;
     private readonly IPluginRuntimeAdapter _pluginRuntimeAdapter;
     private readonly IMemberFeatureService _memberFeatureService;
     private readonly ILogger<MemberPluginSlotService> _logger;
 
     public MemberPluginSlotService(
         IPluginRegistryReader pluginRegistryReader,
+        IPluginContributionActivator contributionActivator,
         IPluginRuntimeAdapter pluginRuntimeAdapter,
         IMemberFeatureService memberFeatureService,
         ILogger<MemberPluginSlotService> logger)
     {
         _pluginRegistryReader = pluginRegistryReader;
+        _contributionActivator = contributionActivator;
         _pluginRuntimeAdapter = pluginRuntimeAdapter;
         _memberFeatureService = memberFeatureService;
         _logger = logger;
     }
+
+    /// <summary>
+    /// CORE-18. A slot that cannot be rented stays empty — a member detail page must not fail
+    /// because one plugin is broken or draining — but the reason is logged with the module id
+    /// instead of being dropped silently the way it used to be.
+    /// </summary>
+    private void LogSkippedSlot(string moduleId, string providerType, string? error)
+        => _logger.LogWarning(
+            "Plugin-Slot '{ProviderType}' aus Modul {ModuleId} wurde uebersprungen: {Reason}",
+            providerType,
+            moduleId,
+            error);
 
     public async Task<MemberPluginSlotSnapshot> GetSlotsAsync(
         Member member,
@@ -107,9 +122,11 @@ public sealed class MemberPluginSlotService : IMemberPluginSlotService
                      .OrderBy(provider => provider.Order)
                      .ThenBy(provider => provider.ProviderType, StringComparer.OrdinalIgnoreCase))
         {
-            var provider = _pluginRegistryReader.CreateMemberProvider<IMemberActionProvider>(request.ModuleId, contribution.ProviderType);
-            if (provider is null)
+            await using var lease = _contributionActivator.Rent<IMemberActionProvider>(
+                request.ModuleId, contribution.ProviderType, user);
+            if (lease.Instance is not { } provider)
             {
+                LogSkippedSlot(request.ModuleId, contribution.ProviderType, lease.Error);
                 continue;
             }
 
@@ -163,9 +180,11 @@ public sealed class MemberPluginSlotService : IMemberPluginSlotService
         List<MemberPluginDetailCardView> cards,
         CancellationToken cancellationToken)
     {
-        var provider = _pluginRegistryReader.CreateMemberProvider<IMemberDetailCardProvider>(runtime.ModuleId, contribution.ProviderType);
-        if (provider is null)
+        await using var lease = _contributionActivator.Rent<IMemberDetailCardProvider>(
+            runtime.ModuleId, contribution.ProviderType, user);
+        if (lease.Instance is not { } provider)
         {
+            LogSkippedSlot(runtime.ModuleId, contribution.ProviderType, lease.Error);
             return;
         }
 
@@ -199,9 +218,11 @@ public sealed class MemberPluginSlotService : IMemberPluginSlotService
         List<MemberPluginEditTabView> tabs,
         CancellationToken cancellationToken)
     {
-        var provider = _pluginRegistryReader.CreateMemberProvider<IMemberEditTabProvider>(runtime.ModuleId, contribution.ProviderType);
-        if (provider is null)
+        await using var lease = _contributionActivator.Rent<IMemberEditTabProvider>(
+            runtime.ModuleId, contribution.ProviderType, user);
+        if (lease.Instance is not { } provider)
         {
+            LogSkippedSlot(runtime.ModuleId, contribution.ProviderType, lease.Error);
             return;
         }
 
@@ -239,9 +260,11 @@ public sealed class MemberPluginSlotService : IMemberPluginSlotService
         List<MemberPluginStatusBadgeView> badges,
         CancellationToken cancellationToken)
     {
-        var provider = _pluginRegistryReader.CreateMemberProvider<IMemberStatusBadgeProvider>(runtime.ModuleId, contribution.ProviderType);
-        if (provider is null)
+        await using var lease = _contributionActivator.Rent<IMemberStatusBadgeProvider>(
+            runtime.ModuleId, contribution.ProviderType, user);
+        if (lease.Instance is not { } provider)
         {
+            LogSkippedSlot(runtime.ModuleId, contribution.ProviderType, lease.Error);
             return;
         }
 
@@ -275,9 +298,11 @@ public sealed class MemberPluginSlotService : IMemberPluginSlotService
         List<MemberPluginActionView> actions,
         CancellationToken cancellationToken)
     {
-        var provider = _pluginRegistryReader.CreateMemberProvider<IMemberActionProvider>(runtime.ModuleId, contribution.ProviderType);
-        if (provider is null)
+        await using var lease = _contributionActivator.Rent<IMemberActionProvider>(
+            runtime.ModuleId, contribution.ProviderType, user);
+        if (lease.Instance is not { } provider)
         {
+            LogSkippedSlot(runtime.ModuleId, contribution.ProviderType, lease.Error);
             return;
         }
 

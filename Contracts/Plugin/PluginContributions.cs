@@ -49,7 +49,16 @@ public sealed record PluginAdminPanelProviderContribution(
     string ProviderType,
     int Order = 0);
 
-public sealed record PluginPageProviderContribution(string ProviderType, int Order = 0);
+public sealed record PluginPageProviderContribution(string ProviderType, int Order = 0)
+{
+    /// <summary>
+    /// Contract 1.14.0. The page key this provider serves. <c>null</c> keeps the pre-1.14.0
+    /// behaviour of one provider answering for the module regardless of the requested page key.
+    /// A module registering more than one page provider must give each a distinct <see cref="PageKey"/>
+    /// so the host can route <c>/plugin-pages/{moduleId}/{pageKey}</c> to the right one.
+    /// </summary>
+    public string? PageKey { get; init; }
+}
 
 public sealed record PluginAuditSinkContribution(string ProviderType, int Order = 0);
 

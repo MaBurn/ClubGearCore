@@ -28,7 +28,7 @@ public sealed class PluginRegistryTests
         Assert.NotNull(loadResult.LoadedPlugin);
 
         var registry = new PluginRegistry();
-        registry.Register(
+        await registry.RegisterAsync(
             loadResult.LoadedPlugin!.Runtime,
             loadResult.LoadedPlugin.Module,
             loadResult.LoadedPlugin.LoadContext);
@@ -44,7 +44,7 @@ public sealed class PluginRegistryTests
         Assert.NotNull(snapshot);
         Assert.Contains(snapshot!.Routes, route => route.RoutePattern == "/declared/runtime-a");
         Assert.Contains(snapshot.Routes, route => route.RoutePattern == "/runtime/health");
-        Assert.Contains(snapshot.Services, service => service.Key == "members.service");
+        Assert.Contains(snapshot.Services, service => service.Key == PluginCapabilityKeys.StorageBlob);
         Assert.Contains(snapshot.MemberProviders, provider => provider.SlotKind == PluginMemberSlotKind.DetailCard);
         Assert.Contains(snapshot.BackgroundJobs, job => job.Key == "members.sync");
     }

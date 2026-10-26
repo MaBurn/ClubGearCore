@@ -1,26 +1,39 @@
 @model ClubGear.Controllers.Admin.ExternalLoginConfigureViewModel
 @using ClubGear.Plugin.Contracts
-@inject ClubGear.Services.Abstractions.IExternalLoginConfigService ExternalLoginConfigService
 @inject ClubGear.Services.Abstractions.IPluginRegistryReader PluginRegistryReader
+@inject ClubGear.Services.Abstractions.IPluginContributionActivator PluginContributionActivator
 @{
     ViewData["Title"] = $"Konfigurieren: {Model.ProviderInfo.DisplayName}";
 
     // Resolve the schema from the live plugin (may be null if plugin not loaded).
     IReadOnlyList<PluginFieldSchema>? schema = null;
-    var runtimes = PluginRegistryReader.GetRegisteredPlugins();
-    foreach (var runtime in runtimes)
+    if (Model.ProviderInfo.IsAvailable)
     {
-        foreach (var contribution in runtime.IdentityProviders)
+        try
         {
-            if (string.Equals(contribution.ProviderKey, Model.ProviderInfo.ProviderKey, StringComparison.OrdinalIgnoreCase))
+            var runtimes = PluginRegistryReader.GetRegisteredPlugins();
+            foreach (var runtime in runtimes)
             {
-                var plugin = PluginRegistryReader.CreateMemberProvider<IIdentityProviderPlugin>(
-                    runtime.ModuleId, contribution.ProviderType);
-                schema = plugin?.GetConfigSchema();
-                break;
+                foreach (var contribution in runtime.IdentityProviders)
+                {
+                    if (string.Equals(contribution.ProviderKey, Model.ProviderInfo.ProviderKey, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // CORE-18. The view stays synchronous: the lease is IDisposable as well
+                        // as IAsyncDisposable, and disposing it releases the host scope and the
+                        // activity token the moment the schema has been read.
+                        using var lease = PluginContributionActivator.Rent<IIdentityProviderPlugin>(
+                            runtime.ModuleId, contribution.ProviderType, User);
+                        schema = lease.Instance?.GetConfigSchema();
+                        break;
+                    }
+                }
+                if (schema is not null) break;
             }
         }
-        if (schema is not null) break;
+        catch
+        {
+            schema = null;
+        }
     }
 }
 
@@ -81,6 +94,7 @@
                                        name="@field.Key"
                                        class="form-control"
                                        placeholder="@(field.Placeholder ?? string.Empty)"
+                                       required="@field.Required"
                                        autocomplete="new-password" />
                             }
                         }
@@ -90,6 +104,7 @@
                                       name="@field.Key"
                                       class="form-control"
                                       rows="4"
+                                      required="@field.Required"
                                       placeholder="@(field.Placeholder ?? string.Empty)">@currentValue</textarea>
                         }
                         else
@@ -99,6 +114,7 @@
                                    name="@field.Key"
                                    class="form-control"
                                    value="@currentValue"
+                                   required="@field.Required"
                                    placeholder="@(field.Placeholder ?? string.Empty)" />
                         }
 
@@ -117,7 +133,7 @@
             }
 
             <div class="d-flex gap-2 mt-4">
-                <button type="submit" class="btn btn-primary">Speichern</button>
+                <button type="submit" class="btn btn-primary" disabled="@(schema is null)">Speichern</button>
                 <a href="@Url.Action("Index", "ExternalLoginAdmin")" class="btn btn-outline-secondary">
                     Abbrechen
                 </a>

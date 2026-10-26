@@ -8,15 +8,18 @@ namespace ClubGear.Services.Core;
 public sealed class PluginAdminCommandService : IPluginAdminCommandService
 {
     private readonly IPluginRegistryReader _pluginRegistryReader;
+    private readonly IPluginContributionActivator _contributionActivator;
     private readonly IPluginRuntimeAdapter _pluginRuntimeAdapter;
     private readonly ILogger<PluginAdminCommandService> _logger;
 
     public PluginAdminCommandService(
         IPluginRegistryReader pluginRegistryReader,
+        IPluginContributionActivator contributionActivator,
         IPluginRuntimeAdapter pluginRuntimeAdapter,
         ILogger<PluginAdminCommandService> logger)
     {
         _pluginRegistryReader = pluginRegistryReader;
+        _contributionActivator = contributionActivator;
         _pluginRuntimeAdapter = pluginRuntimeAdapter;
         _logger = logger;
     }
@@ -46,9 +49,15 @@ public sealed class PluginAdminCommandService : IPluginAdminCommandService
                          .OrderBy(provider => provider.Order)
                          .ThenBy(provider => provider.ProviderType, StringComparer.OrdinalIgnoreCase))
             {
-                var provider = _pluginRegistryReader.CreateMemberProvider<IAdminFunctionPanelProvider>(runtime.ModuleId, contribution.ProviderType);
-                if (provider is null)
+                await using var lease = _contributionActivator.Rent<IAdminFunctionPanelProvider>(
+                    runtime.ModuleId, contribution.ProviderType, user);
+                if (lease.Instance is not { } provider)
                 {
+                    _logger.LogWarning(
+                        "Admin-Panel-Provider '{ProviderType}' aus Modul {ModuleId} wurde uebersprungen: {Reason}",
+                        contribution.ProviderType,
+                        runtime.ModuleId,
+                        lease.Error);
                     continue;
                 }
 
@@ -125,9 +134,15 @@ public sealed class PluginAdminCommandService : IPluginAdminCommandService
                      .OrderBy(provider => provider.Order)
                      .ThenBy(provider => provider.ProviderType, StringComparer.OrdinalIgnoreCase))
         {
-            var provider = _pluginRegistryReader.CreateMemberProvider<IAdminFunctionPanelProvider>(runtime.ModuleId, contribution.ProviderType);
-            if (provider is null)
+            await using var lease = _contributionActivator.Rent<IAdminFunctionPanelProvider>(
+                runtime.ModuleId, contribution.ProviderType, user);
+            if (lease.Instance is not { } provider)
             {
+                _logger.LogWarning(
+                    "Admin-Panel-Provider '{ProviderType}' aus Modul {ModuleId} wurde uebersprungen: {Reason}",
+                    contribution.ProviderType,
+                    runtime.ModuleId,
+                    lease.Error);
                 continue;
             }
 

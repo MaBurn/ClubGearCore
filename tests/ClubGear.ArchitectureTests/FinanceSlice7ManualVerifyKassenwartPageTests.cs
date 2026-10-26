@@ -8,17 +8,16 @@ namespace ClubGear.ArchitectureTests;
 
 /// <summary>
 /// Slice 7 (Finance iteration 4) verification:
-///   7.1 ExecuteCommandAsync("finance.kassenwart.verify", entityKey=memberId, args={bankAccountId=X})
+///   7.1 ExecuteCommandAsync("finance.treasurer.verify", entityKey=memberId, args={bankAccountId=X})
 ///       on a PendingVerification account returns success; account transitions to Verified;
 ///       all MarkedForDeletion rows for the same member become Invalid.
 ///   7.2 Same command with a mismatched memberId (account belongs to a different member)
 ///       returns (false, "not-found", _).
 ///   7.3 Same command with a non-integer bankAccountId argument
 ///       returns (false, "invalid-account", _).
-///   7.4 ExecuteCommandAsync("finance.kassenwart.invalidate", ...) on a PendingVerification account
+///   7.4 ExecuteCommandAsync("finance.treasurer.invalidate", ...) on a PendingVerification account
 ///       returns success.
-///   7.5 GetPageDefinitionAsync command schemas include a bankAccountId field and do NOT include
-///       a memberId field.
+///   7.5 GetPageDefinitionAsync uses an English page key and row commands.
 /// </summary>
 public sealed class FinanceSlice7ManualVerifyKassenwartPageTests
 {
@@ -87,7 +86,7 @@ public sealed class FinanceSlice7ManualVerifyKassenwartPageTests
 
         var result = await provider.ExecuteCommandAsync(
             host,
-            "finance.kassenwart.verify",
+            "finance.treasurer.verify",
             memberId.ToString(CultureInfo.InvariantCulture),
             args,
             CancellationToken.None);
@@ -130,7 +129,7 @@ public sealed class FinanceSlice7ManualVerifyKassenwartPageTests
 
         var result = await provider.ExecuteCommandAsync(
             host,
-            "finance.kassenwart.verify",
+            "finance.treasurer.verify",
             wrongMemberId.ToString(CultureInfo.InvariantCulture),
             args,
             CancellationToken.None);
@@ -155,13 +154,36 @@ public sealed class FinanceSlice7ManualVerifyKassenwartPageTests
 
         var result = await provider.ExecuteCommandAsync(
             host,
-            "finance.kassenwart.verify",
+            "finance.treasurer.verify",
             "999",
             args,
             CancellationToken.None);
 
         Assert.False(result.Success);
         Assert.Equal("invalid-account", result.Status);
+    }
+
+    [Fact]
+    public async Task ExecuteCommand_Verify_WithoutBankAccountId_UsesPendingAccountForMember()
+    {
+        var (data, _, host) = await CreateAsync();
+        const int memberId = 251;
+
+        var replace = await data.ReplaceAccountAsync(host, memberId, MakeInput("DE89370400440532013000"), "system", CancellationToken.None);
+        Assert.True(replace.Success, $"Replace failed: {replace.Message}");
+
+        var provider = new FinanceKassenwartPageProvider();
+        var result = await provider.ExecuteCommandAsync(
+            host,
+            "finance.treasurer.verify",
+            memberId.ToString(CultureInfo.InvariantCulture),
+            new Dictionary<string, string>(),
+            CancellationToken.None);
+
+        Assert.True(result.Success, $"Command failed: {result.Status} — {result.Message}");
+
+        var accounts = await data.GetAccountsAsync(host, memberId, CancellationToken.None);
+        Assert.Equal(BankAccountStatus.Verified, Assert.Single(accounts).Status);
     }
 
     // ---------------------------------------------------------------------------
@@ -187,7 +209,7 @@ public sealed class FinanceSlice7ManualVerifyKassenwartPageTests
 
         var result = await provider.ExecuteCommandAsync(
             host,
-            "finance.kassenwart.invalidate",
+            "finance.treasurer.invalidate",
             memberId.ToString(CultureInfo.InvariantCulture),
             args,
             CancellationToken.None);
@@ -200,27 +222,65 @@ public sealed class FinanceSlice7ManualVerifyKassenwartPageTests
     }
 
     // ---------------------------------------------------------------------------
-    // 7.5 — GetPageDefinitionAsync: command schemas have bankAccountId, not memberId
+    // 7.5 — GetPageDefinitionAsync: English page key and row commands
     // ---------------------------------------------------------------------------
     [Fact]
-    public async Task GetPageDefinition_CommandSchemas_ContainBankAccountId_NotMemberId()
+    public async Task GetPageDefinition_UsesEnglishPageKey_AndRowCommands()
     {
         var (_, _, host) = await CreateAsync();
 
         var provider = new FinanceKassenwartPageProvider();
         var definition = await provider.GetPageDefinitionAsync(host, CancellationToken.None);
 
+        Assert.Equal("finance.treasurer", definition.PageKey);
         Assert.NotNull(definition.Commands);
 
-        foreach (var command in definition.Commands)
-        {
-            Assert.NotNull(command.Schema);
+        Assert.Contains(definition.Commands, command => command.Key == "finance.treasurer.verify" && command.RequiresEntityKey);
+        Assert.Contains(definition.Commands, command => command.Key == "finance.treasurer.invalidate" && command.RequiresEntityKey);
 
-            var fieldKeys = command.Schema.Select(f => f.Key).ToList();
+        // Verify/invalidate are confirmation-only (no schema); the SEPA command collects the
+        // mandate reference through a schema-driven modal.
+        var verify = definition.Commands.Single(command => command.Key == "finance.treasurer.verify");
+        var invalidate = definition.Commands.Single(command => command.Key == "finance.treasurer.invalidate");
+        Assert.Null(verify.Schema);
+        Assert.Null(invalidate.Schema);
 
-            Assert.Contains("bankAccountId", fieldKeys);
-            Assert.DoesNotContain("memberId", fieldKeys);
-        }
+        var sepa = definition.Commands.Single(command => command.Key == "finance.treasurer.sepa");
+        Assert.True(sepa.RequiresEntityKey);
+        Assert.NotNull(sepa.Schema);
+        Assert.Contains(sepa.Schema!, field => field.Key == "sepaDirectDebitId" && field.Required);
+    }
+
+    // ---------------------------------------------------------------------------
+    // 7.6 — sepa command: writes the mandate reference onto the verified account
+    // ---------------------------------------------------------------------------
+    [Fact]
+    public async Task ExecuteCommand_Sepa_OnVerifiedAccount_StoresMandateReference()
+    {
+        var (data, _, host) = await CreateAsync();
+        const int memberId = 401;
+
+        var replace = await data.ReplaceAccountAsync(host, memberId, MakeInput("DE89370400440532013000"), "system", CancellationToken.None);
+        Assert.True(replace.Success, $"Replace failed: {replace.Message}");
+
+        var pending = (await data.GetAccountsAsync(host, memberId, CancellationToken.None))
+            .Single(a => a.Status == BankAccountStatus.PendingVerification);
+        var verify = await data.VerifyAccountAsync(host, pending.Id, memberId, "system", CancellationToken.None);
+        Assert.True(verify.Success);
+
+        var provider = new FinanceKassenwartPageProvider();
+        var result = await provider.ExecuteCommandAsync(
+            host,
+            "finance.treasurer.sepa",
+            memberId.ToString(CultureInfo.InvariantCulture),
+            new Dictionary<string, string> { ["sepaDirectDebitId"] = "SEPA-REF-401" },
+            CancellationToken.None);
+
+        Assert.True(result.Success, $"Sepa command failed: {result.Status} — {result.Message}");
+
+        var verified = (await data.GetAccountsAsync(host, memberId, CancellationToken.None))
+            .Single(a => a.Status == BankAccountStatus.Verified);
+        Assert.Equal("SEPA-REF-401", verified.SepaDirectDebitId);
     }
 
     // ---------------------------------------------------------------------------

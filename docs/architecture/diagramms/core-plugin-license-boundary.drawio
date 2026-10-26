@@ -18,16 +18,16 @@
           <mxGeometry x="530" y="305" width="540" height="340" as="geometry"/>
         </mxCell>
 
-        <mxCell id="identityGroup" value="Identitaets-Plugins&#xa;Lizenz: Open Source oder kommerziell" style="swimlane;html=1;rounded=1;arcSize=8;startSize=38;fillColor=#EAE6FF;strokeColor=#6554C0;fontSize=15;fontStyle=1;fontColor=#403294;" vertex="1" parent="1">
+        <mxCell id="identityGroup" value="OIDC-Provider-Plugins&#xa;Lizenz: Open Source oder kommerziell" style="swimlane;html=1;rounded=1;arcSize=8;startSize=38;fillColor=#EAE6FF;strokeColor=#6554C0;fontSize=15;fontStyle=1;fontColor=#403294;" vertex="1" parent="1">
           <mxGeometry x="70" y="175" width="330" height="250" as="geometry"/>
         </mxCell>
-        <mxCell id="keycloak" value="Keycloak Plugin&#xa;OIDC / SAML" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#6554C0;fontSize=14;fontColor=#172B4D;" vertex="1" parent="identityGroup">
+        <mxCell id="keycloak" value="Keycloak Plugin&#xa;OpenID Connect" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#6554C0;fontSize=14;fontColor=#172B4D;" vertex="1" parent="identityGroup">
           <mxGeometry x="25" y="60" width="280" height="48" as="geometry"/>
         </mxCell>
-        <mxCell id="azuread" value="Azure AD / Entra ID Plugin&#xa;OIDC / OAuth2" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#6554C0;fontSize=14;fontColor=#172B4D;" vertex="1" parent="identityGroup">
+        <mxCell id="azuread" value="Microsoft Entra ID Plugin&#xa;OpenID Connect" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#6554C0;fontSize=14;fontColor=#172B4D;" vertex="1" parent="identityGroup">
           <mxGeometry x="25" y="120" width="280" height="48" as="geometry"/>
         </mxCell>
-        <mxCell id="ldap" value="LDAP / Active Directory Plugin&#xa;Directory Sync" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#6554C0;fontSize=14;fontColor=#172B4D;" vertex="1" parent="identityGroup">
+        <mxCell id="ldap" value="LDAP / SAML&#xa;Roadmap - nicht unterstuetzt" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#6554C0;fontSize=14;fontColor=#172B4D;" vertex="1" parent="identityGroup">
           <mxGeometry x="25" y="180" width="280" height="48" as="geometry"/>
         </mxCell>
 
@@ -58,7 +58,7 @@
           <mxGeometry x="1065" y="665" width="430" height="130" as="geometry"/>
         </mxCell>
 
-        <mxCell id="arrowIdentity" value="Authentifizierung, Rollen-Mapping, Claims" style="endArrow=block;html=1;rounded=0;strokeColor=#6554C0;strokeWidth=2;fontSize=12;fontColor=#403294;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="identityGroup" target="boundary">
+        <mxCell id="arrowIdentity" value="OIDC-Metadaten, Verbindungstest, Claim-Mapping" style="endArrow=block;html=1;rounded=0;strokeColor=#6554C0;strokeWidth=2;fontSize=12;fontColor=#403294;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="identityGroup" target="boundary">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="400" y="335" as="sourcePoint"/>
             <mxPoint x="530" y="385" as="targetPoint"/>

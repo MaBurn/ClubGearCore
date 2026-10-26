@@ -59,6 +59,9 @@ public sealed class Slice6VerificationTests
         Assert.Contains("~/Views/Members/_PluginActionModal.cshtml", profileContent, StringComparison.Ordinal);
         Assert.Contains("ViewData[\"PluginActionEndpoint\"] = \"/api/self-service/plugin-actions\"", profileContent, StringComparison.Ordinal);
         Assert.Contains("ViewData[\"PluginSlotMode\"] = \"edit-cards\"", profileContent, StringComparison.Ordinal);
+        Assert.Contains("selfServiceModuleIds", profileContent, StringComparison.Ordinal);
+        Assert.Contains("!selfServiceModuleIds.Contains(tab.ModuleId)", profileContent, StringComparison.Ordinal);
+        Assert.Contains("model=\"pluginSlotsForProfile\"", profileContent, StringComparison.Ordinal);
         Assert.DoesNotContain("Plugin-Erweiterungen", profileContent, StringComparison.Ordinal);
     }
 

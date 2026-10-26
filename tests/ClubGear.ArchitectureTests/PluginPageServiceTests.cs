@@ -20,6 +20,7 @@ public sealed class PluginPageServiceTests
     private static PluginPageService CreateService(PluginRegistry registry)
         => new PluginPageService(
             registry,
+            Plugins.TestContributionActivatorFactory.Create(registry, CreateRuntimeAdapter()),
             CreateRuntimeAdapter(),
             NullLogger<PluginPageService>.Instance);
 
@@ -43,7 +44,7 @@ public sealed class PluginPageServiceTests
     private static PluginRegistry BuildRegistry(IPluginModule module)
     {
         var registry = new PluginRegistry();
-        registry.Register(
+        registry.RegisterAsync(
             new RegisteredPluginRuntime(
                 module.Manifest.ModuleId,
                 module.Manifest.DisplayName,
@@ -58,7 +59,7 @@ public sealed class PluginPageServiceTests
                 Array.Empty<PluginIdentityProviderContribution>(),
                 Array.Empty<PluginSelfServiceProfileProviderContribution>()),
             module,
-            AssemblyLoadContext.GetLoadContext(module.GetType().Assembly)!);
+            AssemblyLoadContext.GetLoadContext(module.GetType().Assembly)!).GetAwaiter().GetResult();
         return registry;
     }
 
@@ -198,6 +199,27 @@ public sealed class PluginPageServiceTests
         Assert.False(result.IsSuccess);
     }
 
+    [Fact]
+    public async Task GetPageDefinitionAsync_RoutesByPageKey_WhenModuleRegistersMultiplePages()
+    {
+        var module = new MultiPagePluginModule();
+        var registry = BuildRegistry(module);
+        var service = CreateService(registry);
+
+        var bookings = await service.GetPageDefinitionAsync(
+            module.Manifest.ModuleId, "multi.bookings", BuildUser(MultiPagePluginModule.ListPermission));
+        var reports = await service.GetPageDefinitionAsync(
+            module.Manifest.ModuleId, "multi.reports", BuildUser(MultiPagePluginModule.ListPermission));
+
+        Assert.True(bookings.IsSuccess);
+        Assert.Equal("multi.bookings", bookings.Value!.PageKey);
+        Assert.Equal("Bookings", bookings.Value.Title);
+
+        Assert.True(reports.IsSuccess);
+        Assert.Equal("multi.reports", reports.Value!.PageKey);
+        Assert.Equal("Reports", reports.Value.Title);
+    }
+
     // ----------------------------------------------------------------
     // Inner stubs
     // ----------------------------------------------------------------
@@ -231,6 +253,14 @@ public sealed class PluginPageServiceTests
 
     private sealed class TestPageProvider : IPluginPageProvider
     {
+        // CORE-18. Contributions are host-constructed as T(IPluginHostContext).
+        public TestPageProvider(IPluginHostContext hostContext)
+        {
+            HostContext = hostContext;
+        }
+
+        public IPluginHostContext HostContext { get; }
+
         private static readonly IReadOnlyList<PluginPageColumn> Columns =
         [
             new PluginPageColumn("Id", "ID"),
@@ -286,6 +316,75 @@ public sealed class PluginPageServiceTests
 
             return Task.FromResult(new PluginCommandResult(false, "unknown-command", "Unbekannter Befehl."));
         }
+    }
+
+    private sealed class MultiPagePluginModule : IPluginModule
+    {
+        public const string ListPermission = "test.multipage.read";
+
+        public MultiPagePluginModule()
+        {
+            Manifest = new PluginManifest(
+                "plugin.multipage.test",
+                "Multi Page Test Plugin",
+                new Version(1, 0, 0),
+                "Plugin Tests",
+                "Proprietary",
+                typeof(MultiPagePluginModule).FullName!,
+                ">=1.0.0",
+                [ListPermission],
+                ["page.generic"]);
+        }
+
+        public PluginManifest Manifest { get; }
+
+        public void RegisterContributions(IPluginContributionSink sink)
+        {
+            sink.AddPageProvider(new PluginPageProviderContribution(typeof(BookingsPageProvider).FullName!)
+            {
+                PageKey = "multi.bookings"
+            });
+            sink.AddPageProvider(new PluginPageProviderContribution(typeof(ReportsPageProvider).FullName!)
+            {
+                PageKey = "multi.reports"
+            });
+        }
+    }
+
+    private sealed class BookingsPageProvider : IPluginPageProvider
+    {
+        public BookingsPageProvider(IPluginHostContext hostContext) { }
+
+        public Task<PluginPageDefinition> GetPageDefinitionAsync(IPluginHostContext context, CancellationToken ct = default)
+            => Task.FromResult(new PluginPageDefinition(
+                "multi.bookings", "Bookings", "Id", [], [], MultiPagePluginModule.ListPermission, null));
+
+        public Task<IReadOnlyList<IReadOnlyDictionary<string, string?>>> GetRowsAsync(
+            IPluginHostContext context, string? filterValue, string? entityKey, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<IReadOnlyDictionary<string, string?>>>([]);
+
+        public Task<PluginCommandResult> ExecuteCommandAsync(
+            IPluginHostContext context, string commandKey, string? entityKey,
+            IReadOnlyDictionary<string, string> arguments, CancellationToken ct = default)
+            => Task.FromResult(new PluginCommandResult(false, "unknown-command", "Unbekannter Befehl."));
+    }
+
+    private sealed class ReportsPageProvider : IPluginPageProvider
+    {
+        public ReportsPageProvider(IPluginHostContext hostContext) { }
+
+        public Task<PluginPageDefinition> GetPageDefinitionAsync(IPluginHostContext context, CancellationToken ct = default)
+            => Task.FromResult(new PluginPageDefinition(
+                "multi.reports", "Reports", "Id", [], [], MultiPagePluginModule.ListPermission, null));
+
+        public Task<IReadOnlyList<IReadOnlyDictionary<string, string?>>> GetRowsAsync(
+            IPluginHostContext context, string? filterValue, string? entityKey, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<IReadOnlyDictionary<string, string?>>>([]);
+
+        public Task<PluginCommandResult> ExecuteCommandAsync(
+            IPluginHostContext context, string commandKey, string? entityKey,
+            IReadOnlyDictionary<string, string> arguments, CancellationToken ct = default)
+            => Task.FromResult(new PluginCommandResult(false, "unknown-command", "Unbekannter Befehl."));
     }
 
     private sealed class ClaimsBackedPermissionFacade : IExtensionPermissionFacade

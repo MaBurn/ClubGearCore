@@ -2,9 +2,9 @@
 
 Audience: Entwickler, Architekten, technisch versierte Vereinsadmins
 Scope: Gesamtsystem ClubGear — Kontextgrenzen, Akteure, externe Systeme
-Last-Validated: 2026-07-09
+Last-Validated: 2026-08-05
 Source-Commit: working-tree docs refresh
-Related-Diagrams: diagrams/img/ctx-system-overview.png
+Related-Diagrams: diagrams/src/ctx-system-overview.puml
 
 ## Purpose
 
@@ -14,7 +14,10 @@ und wie ClubGear intern strukturiert ist (MVC-Core + Plugin-Erweiterbarkeit).
 
 ## Systemkontext
 
-![System Context](diagrams/img/ctx-system-overview.png)
+Die versionierte PlantUML-Quelle ist
+[ctx-system-overview.puml](diagrams/src/ctx-system-overview.puml). Das zuvor eingebettete PNG wird
+nicht mehr als massgeblich angezeigt, weil im Repository derzeit kein reproduzierbarer
+Diagramm-Renderer konfiguriert ist.
 
 ### Akteure
 
@@ -29,7 +32,7 @@ und wie ClubGear intern strukturiert ist (MVC-Core + Plugin-Erweiterbarkeit).
 | System | Verbindung | Pflicht |
 |---|---|---|
 | SMTP-Server | Ausgehende E-Mails (Notifications, Registrierung) | Ja (konfigurierbar) |
-| Keycloak (optional) | OAuth2/OIDC SSO-Integration | Nein |
+| Externer OIDC-Provider (optional) | SSO ueber ein `identity.provider`-Plugin, z.B. Keycloak oder Microsoft Entra ID | Nein |
 | Matrix-Server (optional) | Benachrichtigungen via Matrix-Protokoll | Nein |
 | Plugin-Assemblies | `.dll`-Dateien mit `IPluginModule`-Implementierung | Nein |
 
@@ -74,11 +77,13 @@ Vordefinierte Rollen: `Admin`, `Member`, `SelfService` (→ `RoleNames.cs`, `Cor
 | Container | Docker (Dockerfile + docker-compose.yml) |
 
 ## Open Questions
-- SSO-Integration via Keycloak: aktuell optional, Rollout-Datum unbekannt.
+- OIDC-Provider-Plugins: Keycloak und Microsoft Entra ID sind vorgesehene Zielsysteme; konkrete
+  Provider-Plugins werden separat unter `plugins/` entwickelt und veroeffentlicht.
 - Matrix-Notifications: Feature vorhanden, aber nicht in der Default-Konfiguration aktiviert.
 
 ## References
 - [Runtime & Deployment](runtime-deployment.md)
 - [Core Deep-Dive](core-deep-dive.md)
 - [Plugin Boundary & Compliance](plugin-boundary-and-compliance.md)
+- [Identity-Provider-Plugins (OpenID Connect)](identity-provider-plugins.md)
 - [Diagrammquelle](diagrams/src/ctx-system-overview.puml)

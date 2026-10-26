@@ -139,6 +139,62 @@ public sealed class MembershipTypeServiceTests
     }
 
     [Fact]
+    public async Task CreateTypeAsync_PersistsFeeAmountAndBillingInterval_RoundTrips()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        var sut = new MembershipTypeService(fixture.DbContext);
+
+        var created = await sut.CreateTypeAsync(new MembershipType
+        {
+            Key = "Foerderer",
+            Name = "Foerderer",
+            FeeAmount = 99.50m,
+            BillingInterval = "Yearly"
+        });
+
+        Assert.True(created.Success);
+
+        // Reload from the store (fresh entity) to prove the two columns persisted.
+        var reloaded = await sut.GetByIdAsync(created.Type!.Id);
+        Assert.NotNull(reloaded);
+        Assert.Equal(99.50m, reloaded!.FeeAmount);
+        Assert.Equal("Yearly", reloaded.BillingInterval);
+    }
+
+    [Fact]
+    public async Task UpdateTypeAsync_SetsAndClearsFeeAndInterval_NormalizingUnsupportedValues()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        var sut = new MembershipTypeService(fixture.DbContext);
+
+        var created = await sut.CreateTypeAsync(new MembershipType { Key = "Gast", Name = "Gast" });
+
+        // Set a valid quarterly fee.
+        await sut.UpdateTypeAsync(created.Type!.Id, new MembershipType
+        {
+            Name = "Gast",
+            FeeAmount = 25m,
+            BillingInterval = "Quarterly"
+        });
+
+        var withFee = await sut.GetByIdAsync(created.Type.Id);
+        Assert.Equal(25m, withFee!.FeeAmount);
+        Assert.Equal("Quarterly", withFee.BillingInterval);
+
+        // Unsupported interval + non-positive fee are normalized back to null.
+        await sut.UpdateTypeAsync(created.Type.Id, new MembershipType
+        {
+            Name = "Gast",
+            FeeAmount = 0m,
+            BillingInterval = "Monthly"
+        });
+
+        var cleared = await sut.GetByIdAsync(created.Type.Id);
+        Assert.Null(cleared!.FeeAmount);
+        Assert.Null(cleared.BillingInterval);
+    }
+
+    [Fact]
     public async Task UpdateTypeAsync_UnknownId_ReturnsNotFound()
     {
         await using var fixture = await CreateFixtureAsync();

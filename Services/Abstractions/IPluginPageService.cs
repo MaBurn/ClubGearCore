@@ -19,6 +19,17 @@ public interface IPluginPageService
         string? entityKey,
         CancellationToken ct = default);
 
+    /// <summary>
+    /// Contract 1.11.0 path: one page of rows plus the total match count. The host clamps the
+    /// requested page size before it reaches the plugin.
+    /// </summary>
+    Task<PluginPageResult<PluginPageRows>> GetRowsPageAsync(
+        string moduleId,
+        string pageKey,
+        ClaimsPrincipal user,
+        PluginPageQuery query,
+        CancellationToken ct = default);
+
     Task<PluginPageResult<PluginCommandResult>> ExecuteCommandAsync(
         string moduleId,
         string pageKey,

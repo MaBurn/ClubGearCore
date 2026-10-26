@@ -21,10 +21,15 @@ public sealed class PluginBackgroundJobRunnerDiTests
     {
         // Arrange — build the minimal service collection that satisfies
         // PluginBackgroundJobRunner's constructor (IPluginRuntimeRegistry,
-        // IServiceScopeFactory, IHostApplicationLifetime).
+        // IPluginContributionActivator, IServiceScopeFactory, IHostApplicationLifetime).
         var services = new ServiceCollection();
 
         services.AddSingleton<IPluginRuntimeRegistry, PluginRegistry>();
+        services.AddSingleton<IPluginRegistryReader>(sp => sp.GetRequiredService<IPluginRuntimeRegistry>());
+        services.AddSingleton<IPluginActivityTracker, PluginActivityTracker>();
+        // CORE-18. The job instance comes from a lease, so the runner needs the activator.
+        services.AddSingleton<IPluginContributionActivator, PluginContributionActivator>();
+        services.AddLogging();
         services.AddSingleton<IPluginBackgroundJobRunner, PluginBackgroundJobRunner>();
         services.AddSingleton<IHostApplicationLifetime, StubHostApplicationLifetime>();
 
@@ -49,6 +54,11 @@ public sealed class PluginBackgroundJobRunnerDiTests
         var services = new ServiceCollection();
 
         services.AddSingleton<IPluginRuntimeRegistry, PluginRegistry>();
+        services.AddSingleton<IPluginRegistryReader>(sp => sp.GetRequiredService<IPluginRuntimeRegistry>());
+        services.AddSingleton<IPluginActivityTracker, PluginActivityTracker>();
+        // CORE-18. The job instance comes from a lease, so the runner needs the activator.
+        services.AddSingleton<IPluginContributionActivator, PluginContributionActivator>();
+        services.AddLogging();
         services.AddSingleton<IPluginBackgroundJobRunner, PluginBackgroundJobRunner>();
         services.AddSingleton<IHostApplicationLifetime, StubHostApplicationLifetime>();
 

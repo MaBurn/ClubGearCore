@@ -197,22 +197,26 @@ public sealed class PluginLifecycleServiceOrderingTests
 
         public IPluginModule? GetModule(string moduleId) => _inner.GetModule(moduleId);
 
-        public TProvider? CreateMemberProvider<TProvider>(string moduleId, string providerType) where TProvider : class
-            => _inner.CreateMemberProvider<TProvider>(moduleId, providerType);
+        public Type? ResolveContributionType(string moduleId, string contributionType)
+            => _inner.ResolveContributionType(moduleId, contributionType);
 
         public void AddOrReplaceRoute(string moduleId, PluginRouteContribution route)
             => _inner.AddOrReplaceRoute(moduleId, route);
 
-        public void Register(RegisteredPluginRuntime runtime, IPluginModule module, AssemblyLoadContext loadContext)
+        public Task RegisterAsync(
+            RegisteredPluginRuntime runtime,
+            IPluginModule module,
+            AssemblyLoadContext loadContext,
+            CancellationToken cancellationToken = default)
         {
             _log.Add("Register");
-            _inner.Register(runtime, module, loadContext);
+            return _inner.RegisterAsync(runtime, module, loadContext, cancellationToken);
         }
 
-        public bool Unregister(string moduleId)
+        public Task<PluginUnloadOutcome> UnregisterAsync(string moduleId, CancellationToken cancellationToken = default)
         {
             _log.Add("Unregister");
-            return _inner.Unregister(moduleId);
+            return _inner.UnregisterAsync(moduleId, cancellationToken);
         }
     }
 

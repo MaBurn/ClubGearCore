@@ -37,7 +37,7 @@ public sealed class MembershipTypesController : Controller
 
     [HttpPost("CreateType")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreateType(CreateMembershipTypeInputModel input, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> CreateType(CreateMembershipTypeInputModel input, string? returnTo = null, CancellationToken cancellationToken = default)
     {
         var result = await _membershipTypeService.CreateTypeAsync(new MembershipType
         {
@@ -48,19 +48,21 @@ public sealed class MembershipTypesController : Controller
             SortOrder = input.SortOrder,
             IsActive = input.IsActive,
             AllowsSubMembers = input.AllowsSubMembers,
-            SubMemberLabel = input.SubMemberLabel
+            SubMemberLabel = input.SubMemberLabel,
+            FeeAmount = input.FeeAmount,
+            BillingInterval = input.BillingInterval
         }, cancellationToken);
 
         SetFeedback(result.Success
             ? ActionFeedbackViewModel.Success($"Mitgliedsart '{result.Type!.Name}' wurde angelegt.")
             : ActionFeedbackViewModel.Error(result.ErrorMessage ?? "Mitgliedsart konnte nicht angelegt werden."));
 
-        return RedirectToAction(nameof(Index));
+        return RedirectBack(returnTo);
     }
 
     [HttpPost("UpdateType")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> UpdateType(UpdateMembershipTypeInputModel input, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> UpdateType(UpdateMembershipTypeInputModel input, string? returnTo = null, CancellationToken cancellationToken = default)
     {
         var result = await _membershipTypeService.UpdateTypeAsync(input.Id, new MembershipType
         {
@@ -70,19 +72,21 @@ public sealed class MembershipTypesController : Controller
             SortOrder = input.SortOrder,
             IsActive = input.IsActive,
             AllowsSubMembers = input.AllowsSubMembers,
-            SubMemberLabel = input.SubMemberLabel
+            SubMemberLabel = input.SubMemberLabel,
+            FeeAmount = input.FeeAmount,
+            BillingInterval = input.BillingInterval
         }, cancellationToken);
 
         SetFeedback(result.Success
             ? ActionFeedbackViewModel.Success($"Mitgliedsart '{result.Type!.Name}' wurde aktualisiert.")
             : ActionFeedbackViewModel.Error(result.ErrorMessage ?? "Mitgliedsart konnte nicht aktualisiert werden."));
 
-        return RedirectToAction(nameof(Index));
+        return RedirectBack(returnTo);
     }
 
     [HttpPost("DeleteType")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> DeleteType(int id, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> DeleteType(int id, string? returnTo = null, CancellationToken cancellationToken = default)
     {
         var result = await _membershipTypeService.DeleteTypeAsync(id, cancellationToken);
 
@@ -90,12 +94,12 @@ public sealed class MembershipTypesController : Controller
             ? ActionFeedbackViewModel.Warning($"Mitgliedsart '{result.Type!.Name}' wurde geloescht.")
             : ActionFeedbackViewModel.Error(result.ErrorMessage ?? "Mitgliedsart konnte nicht geloescht werden."));
 
-        return RedirectToAction(nameof(Index));
+        return RedirectBack(returnTo);
     }
 
     [HttpPost("AddField")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddField(CreateMembershipTypeFieldInputModel input, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> AddField(CreateMembershipTypeFieldInputModel input, string? returnTo = null, CancellationToken cancellationToken = default)
     {
         var result = await _membershipTypeService.AddFieldAsync(input.MembershipTypeId, new MembershipTypeField
         {
@@ -111,12 +115,12 @@ public sealed class MembershipTypesController : Controller
             ? ActionFeedbackViewModel.Success($"Feld '{result.Field!.Label}' wurde angelegt.")
             : ActionFeedbackViewModel.Error(result.ErrorMessage ?? "Feld konnte nicht angelegt werden."));
 
-        return RedirectToAction(nameof(Index));
+        return RedirectBack(returnTo);
     }
 
     [HttpPost("UpdateField")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> UpdateField(UpdateMembershipTypeFieldInputModel input, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> UpdateField(UpdateMembershipTypeFieldInputModel input, string? returnTo = null, CancellationToken cancellationToken = default)
     {
         var result = await _membershipTypeService.UpdateFieldAsync(input.Id, new MembershipTypeField
         {
@@ -132,12 +136,12 @@ public sealed class MembershipTypesController : Controller
             ? ActionFeedbackViewModel.Success($"Feld '{result.Field!.Label}' wurde aktualisiert.")
             : ActionFeedbackViewModel.Error(result.ErrorMessage ?? "Feld konnte nicht aktualisiert werden."));
 
-        return RedirectToAction(nameof(Index));
+        return RedirectBack(returnTo);
     }
 
     [HttpPost("RemoveField")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> RemoveField(int id, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> RemoveField(int id, string? returnTo = null, CancellationToken cancellationToken = default)
     {
         var result = await _membershipTypeService.RemoveFieldAsync(id, cancellationToken);
 
@@ -145,8 +149,13 @@ public sealed class MembershipTypesController : Controller
             ? ActionFeedbackViewModel.Warning($"Feld '{result.Field!.Label}' wurde entfernt.")
             : ActionFeedbackViewModel.Error(result.ErrorMessage ?? "Feld konnte nicht entfernt werden."));
 
-        return RedirectToAction(nameof(Index));
+        return RedirectBack(returnTo);
     }
+
+    // Returns to the host page the action was invoked from (e.g. the Admin Functions tab) when a
+    // safe local returnTo is supplied, otherwise falls back to the standalone management page.
+    private IActionResult RedirectBack(string? returnTo)
+        => Url?.IsLocalUrl(returnTo) == true ? Redirect(returnTo!) : RedirectToAction(nameof(Index));
 
     private void SetFeedback(ActionFeedbackViewModel feedback)
     {

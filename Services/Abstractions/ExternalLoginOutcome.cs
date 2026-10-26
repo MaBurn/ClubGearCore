@@ -8,7 +8,8 @@ public sealed record ExternalProviderInfo(
     string ProviderKey,
     string DisplayName,
     string ModuleId,
-    bool IsEnabled);
+    bool IsEnabled,
+    bool IsAvailable = true);
 
 /// <summary>
 /// High-level status codes returned by the external-login callback handler.

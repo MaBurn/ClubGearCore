@@ -1,6 +1,8 @@
 using System.Runtime.Loader;
 using ClubGear.Plugin.Contracts;
 using ClubGear.Services.Abstractions;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace ClubGear.Services.Plugins.Runtime;
 
@@ -8,6 +10,21 @@ public sealed class PluginRegistry : IPluginRuntimeRegistry
 {
     private readonly object _sync = new();
     private readonly Dictionary<string, RegisteredPluginState> _plugins = new(StringComparer.OrdinalIgnoreCase);
+    private readonly IPluginActivityTracker _activityTracker;
+    private readonly PluginRuntimeOptions _options;
+    private readonly ILogger<PluginRegistry> _logger;
+
+    // The dependencies are optional so that the many call sites which only need a plain in-memory
+    // registry can keep using `new PluginRegistry()`. In the host they are supplied by DI.
+    public PluginRegistry(
+        IPluginActivityTracker? activityTracker = null,
+        IOptions<PluginRuntimeOptions>? options = null,
+        ILogger<PluginRegistry>? logger = null)
+    {
+        _activityTracker = activityTracker ?? new PluginActivityTracker();
+        _options = options?.Value ?? new PluginRuntimeOptions();
+        _logger = logger ?? NullLogger<PluginRegistry>.Instance;
+    }
 
     public IReadOnlyList<RegisteredPluginRuntime> GetRegisteredPlugins()
     {
@@ -44,44 +61,41 @@ public sealed class PluginRegistry : IPluginRuntimeRegistry
         }
     }
 
-    public TProvider? CreateMemberProvider<TProvider>(string moduleId, string providerType)
-        where TProvider : class
+    public Type? ResolveContributionType(string moduleId, string contributionType)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(providerType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(contributionType);
 
+        // CORE-18. Lookup only. Activator.CreateInstance used to run here, inside _sync, which
+        // meant plugin code executed under the registry lock and outside the activity tracker.
         lock (_sync)
         {
-            if (!_plugins.TryGetValue(moduleId, out var state))
-            {
-                return null;
-            }
-
-            var providerClrType = state.Module.GetType().Assembly.GetType(providerType, throwOnError: false, ignoreCase: false);
-            if (providerClrType is null || !typeof(TProvider).IsAssignableFrom(providerClrType))
-            {
-                return null;
-            }
-
-            return Activator.CreateInstance(providerClrType) as TProvider;
+            return _plugins.TryGetValue(moduleId, out var state)
+                ? state.Module.GetType().Assembly.GetType(contributionType, throwOnError: false, ignoreCase: false)
+                : null;
         }
     }
 
-    public void Register(RegisteredPluginRuntime runtime, IPluginModule module, AssemblyLoadContext loadContext)
+    public async Task RegisterAsync(
+        RegisteredPluginRuntime runtime,
+        IPluginModule module,
+        AssemblyLoadContext loadContext,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(runtime);
         ArgumentNullException.ThrowIfNull(module);
         ArgumentNullException.ThrowIfNull(loadContext);
 
+        // A registration that displaces a live one goes through the same seal -> drain -> unload
+        // path as deactivation, so no unload bypasses the drain.
+        await SealDrainAndUnloadAsync(runtime.ModuleId, cancellationToken);
+
         lock (_sync)
         {
-            if (_plugins.TryGetValue(runtime.ModuleId, out var existing))
-            {
-                Unload(existing.LoadContext);
-            }
-
             _plugins[runtime.ModuleId] = new RegisteredPluginState(runtime, module, loadContext);
         }
+
+        _activityTracker.Unseal(runtime.ModuleId);
     }
 
     public void AddOrReplaceRoute(string moduleId, PluginRouteContribution route)
@@ -106,20 +120,47 @@ public sealed class PluginRegistry : IPluginRuntimeRegistry
         }
     }
 
-    public bool Unregister(string moduleId)
+    public Task<PluginUnloadOutcome> UnregisterAsync(string moduleId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
 
+        return SealDrainAndUnloadAsync(moduleId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Seals the module inside the lock and removes it, then waits for in-flight plugin work
+    /// outside the lock and unloads unconditionally. Sealing before removal means a caller that has
+    /// already read the registry entry can no longer acquire a token afterwards.
+    /// </summary>
+    private async Task<PluginUnloadOutcome> SealDrainAndUnloadAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        RegisteredPluginState state;
         lock (_sync)
         {
-            if (!_plugins.Remove(moduleId, out var state))
+            if (!_plugins.TryGetValue(moduleId, out var existing))
             {
-                return false;
+                return new PluginUnloadOutcome(Removed: false, Drained: true, InFlightAtUnload: 0);
             }
 
-            Unload(state.LoadContext);
-            return true;
+            _activityTracker.Seal(moduleId);
+            _plugins.Remove(moduleId);
+            state = existing;
         }
+
+        var drained = await _activityTracker.WaitForDrainAsync(moduleId, _options.DrainTimeout, cancellationToken);
+        var inFlight = _activityTracker.GetInFlight(moduleId);
+
+        if (!drained)
+        {
+            _logger.LogWarning(
+                "Plugin {PluginKey} wird entladen, obwohl {InFlightCount} Aufruf(e) nach {DrainSeconds}s noch laufen.",
+                moduleId,
+                inFlight,
+                _options.DrainTimeout.TotalSeconds);
+        }
+
+        Unload(state.LoadContext);
+        return new PluginUnloadOutcome(Removed: true, Drained: drained, InFlightAtUnload: drained ? 0 : inFlight);
     }
 
     private static void Unload(AssemblyLoadContext loadContext)

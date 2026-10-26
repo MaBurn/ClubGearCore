@@ -5,7 +5,8 @@ public sealed record PluginMemberSummary(
     string MemberNumber,
     string FullName,
     bool IsActive,
-    string? Email);
+    string? Email,
+    int? MembershipTypeId = null);
 
 public sealed record PluginMemberDetail(
     int Id,
@@ -15,4 +16,8 @@ public sealed record PluginMemberDetail(
     string? LastName,
     string? Email,
     string? PhoneNumber,
-    bool IsActive);
+    bool IsActive,
+    int? MembershipTypeId = null,
+    string? MembershipTypeName = null,
+    decimal? MembershipFeeAmount = null,
+    string? MembershipBillingInterval = null);

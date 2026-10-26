@@ -1,0 +1,77 @@
+name: clubgear
+
+services:
+  # ---------------------------------------------------------------------------------------
+  # Deployment on a Docker host. Runs the image CI published to the registry — it does not
+  # build anything. This is the only service with a volume: its data must outlive the
+  # container. See docs/releases.md.
+  # ---------------------------------------------------------------------------------------
+  clubgear:
+    image: ${CLUBGEAR_IMAGE:?set CLUBGEAR_IMAGE, e.g. registry.example.org/clubgear/clubgearv1:latest}
+    profiles: ["deploy"]
+    container_name: clubgear
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # Keep every piece of mutable state inside the volume. The defaults in
+      # appsettings.json write next to the binaries, which a container recreate would discard.
+      ConnectionStrings__DefaultConnection: "Data Source=/data/clubgear.db"
+      Email__PickupDirectory: /data/MailDrop
+      # Never enable against real member data.
+      ClubGear__SeedDemoData: "false"
+      Plugins__Enabled: "${CLUBGEAR_PLUGINS_ENABLED:-false}"
+      Plugins__ZipUpload__Enabled: "false"
+    volumes:
+      - clubgear-data:/data
+    ports:
+      - "${CLUBGEAR_PORT:-5080}:8080"
+
+  # ---------------------------------------------------------------------------------------
+  # Local build profiles, as documented in docs/quickstart.md. These build from source and
+  # keep no state: recreating the container discards the database, which is the point.
+  # ---------------------------------------------------------------------------------------
+  clubgear-local:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: clubgear:local
+    profiles: ["local"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Plugins__Enabled: "true"
+      Plugins__ZipUpload__Enabled: "true"
+      # Throwaway container: seed the demo roster so the UI has something to show.
+      ClubGear__SeedDemoData: "true"
+    ports:
+      - "5080:8080"
+
+  clubgear-staging:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: clubgear:staging
+    profiles: ["staging"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: Staging
+      Plugins__Enabled: "true"
+      Plugins__ZipUpload__Enabled: "false"
+      ClubGear__SeedDemoData: "false"
+    ports:
+      - "5081:8080"
+
+  clubgear-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: clubgear:prod
+    profiles: ["prod"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Plugins__Enabled: "false"
+      Plugins__ZipUpload__Enabled: "false"
+      ClubGear__SeedDemoData: "false"
+    ports:
+      - "5082:8080"
+
+volumes:
+  clubgear-data:

@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Text;
+using System.Text.Json;
 using ClubGear.Controllers;
 using ClubGear.Controllers.Api;
 using ClubGear.Plugin.Contracts;
@@ -105,6 +107,28 @@ public sealed class PluginPageControllerTests
         Assert.IsType<NotFoundResult>(result);
     }
 
+    [Fact]
+    public void IndexView_SupportsRowScopedCommandsWithPresetArguments()
+    {
+        var content = File.ReadAllText(GetProjectFilePath("Views", "PluginPage", "Index.cshtml"));
+
+        Assert.Contains("AvailableCommands", content, StringComparison.Ordinal);
+        Assert.Contains("CommandArguments", content, StringComparison.Ordinal);
+        Assert.Contains("data-command-arguments", content, StringComparison.Ordinal);
+        Assert.Contains("availableCommands.Contains(cmd.Key)", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DetailView_SupportsRowScopedCommandsWithPresetArguments()
+    {
+        var content = File.ReadAllText(GetProjectFilePath("Views", "PluginPage", "Detail.cshtml"));
+
+        Assert.Contains("AvailableCommands", content, StringComparison.Ordinal);
+        Assert.Contains("CommandArguments", content, StringComparison.Ordinal);
+        Assert.Contains("data-command-arguments", content, StringComparison.Ordinal);
+        Assert.Contains("availableCommands.Contains(cmd.Key)", content, StringComparison.Ordinal);
+    }
+
     // ----------------------------------------------------------------
     // API controller tests
     // ----------------------------------------------------------------
@@ -177,6 +201,77 @@ public sealed class PluginPageControllerTests
         Assert.False(payload.Success);
     }
 
+    [Fact]
+    public async Task ApiController_ReturnsOk_WithFilePayload_WhenCommandDeliversFile()
+    {
+        var base64 = Convert.ToBase64String(Encoding.UTF8.GetBytes("<xml/>"));
+        var service = new StubPageService
+        {
+            CommandResult = PluginPageResult<PluginCommandResult>.Success(
+                new PluginCommandResult(
+                    true,
+                    "exported",
+                    "OK",
+                    FieldErrors: null,
+                    File: new PluginCommandFile("sepa-einzug-2026-07.xml", "application/xml", base64)))
+        };
+
+        var controller = CreateApiController(service, "page.manage");
+        var request = new PluginPageCommandRequest("test.module", "test.page", "export");
+        var result = await controller.ExecuteCommand(request);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = Assert.IsType<PluginCommandResult>(ok.Value);
+        Assert.NotNull(payload.File);
+        Assert.Equal("sepa-einzug-2026-07.xml", payload.File!.FileName);
+        Assert.Equal("application/xml", payload.File.ContentType);
+        Assert.Equal(base64, payload.File.ContentBase64);
+
+        // The API serializes with the web (camelCase) defaults; the modal reads
+        // result.file.contentBase64 etc., so the wire shape must match.
+        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.Contains("\"file\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"fileName\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"contentType\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"contentBase64\"", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ApiController_ReturnsOk_WithNullFile_ForFilelessCommand()
+    {
+        var service = new StubPageService
+        {
+            CommandResult = PluginPageResult<PluginCommandResult>.Success(
+                new PluginCommandResult(true, "created", "OK"))
+        };
+
+        var controller = CreateApiController(service, "page.manage");
+        var request = new PluginPageCommandRequest("test.module", "test.page", "create");
+        var result = await controller.ExecuteCommand(request);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = Assert.IsType<PluginCommandResult>(ok.Value);
+        Assert.Null(payload.File);
+
+        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.Contains("\"file\":null", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ActionModalView_DecodesFilePayloadAndSkipsReloadForFileResults()
+    {
+        var content = File.ReadAllText(
+            GetProjectFilePath("Views", "PluginPage", "_PluginPageActionModal.cshtml"));
+
+        Assert.Contains("tryDownloadResultFile", content, StringComparison.Ordinal);
+        Assert.Contains("result.file", content, StringComparison.Ordinal);
+        Assert.Contains("contentBase64", content, StringComparison.Ordinal);
+        Assert.Contains("new Blob(", content, StringComparison.Ordinal);
+        Assert.Contains("URL.createObjectURL", content, StringComparison.Ordinal);
+        Assert.Contains("URL.revokeObjectURL", content, StringComparison.Ordinal);
+        Assert.Contains("anchor.download", content, StringComparison.Ordinal);
+    }
+
     // ----------------------------------------------------------------
     // Helpers
     // ----------------------------------------------------------------
@@ -198,6 +293,23 @@ public sealed class PluginPageControllerTests
             .ToList();
         claims.Add(new Claim(ClaimTypes.Name, "test-user"));
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
+    }
+
+    private static string GetProjectFilePath(params string[] segments)
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            var csprojPath = Path.Combine(current.FullName, "ClubGear.csproj");
+            if (File.Exists(csprojPath))
+            {
+                return Path.Combine(new[] { current.FullName }.Concat(segments).ToArray());
+            }
+
+            current = current.Parent;
+        }
+
+        throw new InvalidOperationException("Projektwurzel mit ClubGear.csproj wurde nicht gefunden.");
     }
 
     private static PluginPageController CreateMvcController(IPluginPageService service, params string[] permissions)
@@ -268,5 +380,48 @@ public sealed class PluginPageControllerTests
             ClaimsPrincipal user,
             CancellationToken ct = default)
             => Task.FromResult(CommandResult);
+
+        /// <summary>The query the controller built, so a test can assert on what it passed on.</summary>
+        public PluginPageQuery? LastQuery { get; private set; }
+
+        /// <summary>Set to take over completely; otherwise <see cref="RowsResult"/> is mirrored.</summary>
+        public PluginPageResult<PluginPageRows>? PageRowsResult { get; set; }
+
+        public Task<PluginPageResult<PluginPageRows>> GetRowsPageAsync(
+            string moduleId,
+            string pageKey,
+            ClaimsPrincipal user,
+            PluginPageQuery query,
+            CancellationToken ct = default)
+        {
+            LastQuery = query;
+
+            if (PageRowsResult is not null)
+            {
+                return Task.FromResult(PageRowsResult);
+            }
+
+            // Mirror whatever RowsResult expresses so the tests written before 1.11.0 keep
+            // exercising the same success / forbidden / not-found branches of the controller.
+            if (RowsResult.IsForbidden)
+            {
+                return Task.FromResult(PluginPageResult<PluginPageRows>.Forbidden());
+            }
+
+            if (RowsResult.IsNotFound)
+            {
+                return Task.FromResult(PluginPageResult<PluginPageRows>.NotFound());
+            }
+
+            if (!RowsResult.IsSuccess)
+            {
+                return Task.FromResult(PluginPageResult<PluginPageRows>.Error(
+                    RowsResult.ErrorMessage ?? "error"));
+            }
+
+            var rows = RowsResult.Value ?? [];
+            return Task.FromResult(PluginPageResult<PluginPageRows>.Success(
+                new PluginPageRows(rows, rows.Count)));
+        }
     }
 }

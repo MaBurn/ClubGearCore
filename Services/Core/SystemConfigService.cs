@@ -1,17 +1,24 @@
 using ClubGear.Data;
 using ClubGear.Models;
 using ClubGear.Services.Abstractions;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace ClubGear.Services.Core;
 
 public sealed class SystemConfigService : ISystemConfigService
 {
+    private const string ExternalLoginSectionPrefix = "externallogin.";
     private readonly ApplicationDbContext _dbContext;
+    private readonly IOptionsMonitorCache<OpenIdConnectOptions>? _oidcOptionsCache;
 
-    public SystemConfigService(ApplicationDbContext dbContext)
+    public SystemConfigService(
+        ApplicationDbContext dbContext,
+        IOptionsMonitorCache<OpenIdConnectOptions>? oidcOptionsCache = null)
     {
         _dbContext = dbContext;
+        _oidcOptionsCache = oidcOptionsCache;
     }
 
     public async Task<IReadOnlyList<SystemConfigEntry>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -74,6 +81,7 @@ public sealed class SystemConfigService : ISystemConfigService
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+        InvalidateOidcOptions(normalizedSection);
     }
 
     public async Task UpsertManyAsync(IEnumerable<SystemConfigEntry> entries, CancellationToken cancellationToken = default)
@@ -95,10 +103,24 @@ public sealed class SystemConfigService : ISystemConfigService
 
         _dbContext.SystemConfigEntries.Remove(existing);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        InvalidateOidcOptions(existing.Section);
     }
 
     private static string Normalize(string value)
     {
         return value.Trim();
+    }
+
+    private void InvalidateOidcOptions(string section)
+    {
+        if (!section.StartsWith(ExternalLoginSectionPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        // Generic config write paths do not know the canonical provider-key casing.
+        // Clear the small OIDC cache as a whole so a differently-cased section can
+        // never leave another named provider entry stale.
+        _oidcOptionsCache?.Clear();
     }
 }

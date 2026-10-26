@@ -1,121 +1,295 @@
 @using ClubGear.Plugin.Contracts
-@model (PluginPageDefinition Definition, IReadOnlyList<IReadOnlyDictionary<string, string?>> Rows, string ModuleId, string? FilterValue)
+@using ClubGear.Controllers
+@using System.Text.Json
+@using System.Text.Json.Serialization
+@model PluginPageIndexViewModel
 @{
     var definition = Model.Definition;
     var rows = Model.Rows;
     var moduleId = Model.ModuleId;
-    var filterValue = Model.FilterValue;
+    var filterValue = Model.Filter;
     ViewData["Title"] = definition.Title;
+
+    var listCommands = definition.Commands.Where(c => !c.RequiresEntityKey).ToList();
+    var rowCommands = definition.Commands.Where(c => c.RequiresEntityKey).ToList();
+    var hasFilter = !string.IsNullOrEmpty(filterValue);
+
+    // _PluginPageActionModal.cshtml's JS reads camelCase property names (field.label,
+    // field.inputType, constraints.minLength, ...) and compares inputType against the plain
+    // enum member spelling ('MultilineText', 'Boolean', ...). JsonSerializer.Serialize(cmd.Schema)
+    // with no options defaults to PascalCase property names and integer enum values, which the
+    // JS never reads — every schema field rendered with a blank label and the wrong input type.
+    var commandSchemaJsonOptions = new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Converters = { new JsonStringEnumConverter() }
+    };
+
+    var currentDir = Model.SortDirection == PluginSortDirection.Descending ? "desc" : "asc";
+
+    // Every link out of this page keeps the filter, sorting and page size; only the value the
+    // link is actually changing differs.
+    object RouteFor(string? sort, string? dir, int page) => new
+    {
+        moduleId,
+        pageKey = definition.PageKey,
+        q = filterValue,
+        sort,
+        dir,
+        page,
+        size = Model.PageSize
+    };
+
+    // A row carrying a non-empty "GroupTitle" (a reserved row key, same convention as
+    // "AvailableCommands"/"CommandArguments" — not a declared PluginPageColumn) starts a new
+    // table: itself plus every following row up to the next GroupTitle row. A page that never
+    // sets GroupTitle renders exactly as before — one ungrouped table holding every row.
+    var groups = new List<(string? Title, List<IReadOnlyDictionary<string, string?>> Rows)>();
+    List<IReadOnlyDictionary<string, string?>>? currentGroupRows = null;
+    foreach (var row in rows)
+    {
+        var groupTitle = row.TryGetValue("GroupTitle", out var gt) && !string.IsNullOrWhiteSpace(gt) ? gt : null;
+        if (groupTitle is not null || currentGroupRows is null)
+        {
+            currentGroupRows = [];
+            groups.Add((groupTitle, currentGroupRows));
+        }
+
+        currentGroupRows.Add(row);
+    }
+
+    // Per group: the user's saved choice (if any) applies page-wide; absent that, a column with
+    // no data anywhere in THIS group is hidden by default — a Sachkonto's table doesn't need an
+    // empty "Konto-IBAN" header just because some other group on the page uses it.
+    List<PluginPageColumn> ColumnsFor(List<IReadOnlyDictionary<string, string?>> groupRows)
+    {
+        if (Model.HiddenColumns is { } userHidden)
+        {
+            return definition.Columns.Where(c => !userHidden.Contains(c.Key)).ToList();
+        }
+
+        return definition.Columns
+            .Where(c => groupRows.Any(r => !string.IsNullOrWhiteSpace(r.TryGetValue(c.Key, out var v) ? v : null)))
+            .ToList();
+    }
+
+    // The column picker always lists every page column and reflects the union of what's
+    // currently visible across all groups, so toggling one back on affects every table.
+    var unionVisibleColumns = groups.SelectMany(g => ColumnsFor(g.Rows)).Select(c => c.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
 }
 
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2>@definition.Title</h2>
-    </div>
+<div class="cg-page cg-plugin-page">
+    <section class="cg-plugin-hero mb-3">
+        <div class="cg-plugin-hero__intro">
+            <p class="cg-plugin-hero__eyebrow mb-1">Plugin-Ansicht</p>
+            <h1 class="cg-page-title cg-plugin-hero__title">@definition.Title</h1>
+            <p class="cg-plugin-hero__subtitle mb-0">
+                @if (hasFilter)
+                {
+                    <span>@Model.TotalCount Treffer für „<strong>@filterValue</strong>“</span>
+                }
+                else
+                {
+                    <span>@Model.TotalCount @(Model.TotalCount == 1 ? "Eintrag" : "Einträge")</span>
+                }
+                @if (Model.IsPaged && Model.TotalCount > 0)
+                {
+                    <span class="text-muted">
+                        — angezeigt @Model.FirstRowNumber–@Model.LastRowNumber
+                    </span>
+                }
+            </p>
+        </div>
+
+        @if (listCommands.Count > 0)
+        {
+            <div class="cg-plugin-hero__actions">
+                @foreach (var cmd in listCommands)
+                {
+                    var schemaJson = System.Text.Json.JsonSerializer.Serialize(cmd.Schema ?? [], commandSchemaJsonOptions);
+                    <button type="button"
+                            class="btn btn-primary"
+                            data-plugin-page-action="@cmd.Key"
+                            data-module-id="@moduleId"
+                            data-page-key="@definition.PageKey"
+                            data-command-key="@cmd.Key"
+                            data-command-label="@cmd.Label"
+                            data-command-schema="@schemaJson">
+                        @if (!string.IsNullOrEmpty(cmd.Icon))
+                        {
+                            <i class="bi @cmd.Icon me-1"></i>
+                        }
+                        @cmd.Label
+                    </button>
+                }
+            </div>
+        }
+
+        @if (definition.Columns.Count > 1)
+        {
+            <div class="cg-plugin-hero__actions dropdown" data-plugin-column-picker>
+                <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle"
+                        data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                    <i class="bi bi-layout-three-columns me-1"></i> Spalten
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end p-2" style="max-height: 320px; overflow-y: auto;">
+                    @foreach (var col in definition.Columns)
+                    {
+                        var checkedAttr = unionVisibleColumns.Contains(col.Key) ? "checked" : null;
+                        <li>
+                            <label class="dropdown-item form-check d-flex align-items-center gap-2 mb-0">
+                                <input type="checkbox" class="form-check-input mt-0" value="@col.Key"
+                                       data-plugin-column-toggle checked="@checkedAttr" />
+                                <span>@col.Label</span>
+                            </label>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+    </section>
 
     @if (definition.FilterPlaceholder is not null)
     {
-        <form method="get" class="mb-3">
-            <div class="input-group">
-                <input type="text" class="form-control" name="q"
+        <form method="get" class="cg-plugin-search mb-3" role="search">
+            @* A new search returns to page 1, but keeps the chosen ordering and page size. *@
+            <input type="hidden" name="sort" value="@Model.SortKey" />
+            <input type="hidden" name="dir" value="@currentDir" />
+            @if (Model.PageSize is int keptSize)
+            {
+                <input type="hidden" name="size" value="@keptSize" />
+            }
+            <div class="input-group cg-plugin-search__group">
+                <span class="input-group-text bg-white border-end-0">
+                    <i class="bi bi-search text-muted"></i>
+                </span>
+                <input type="text" class="form-control border-start-0 ps-0" name="q"
                        value="@filterValue"
+                       aria-label="@definition.FilterPlaceholder"
                        placeholder="@definition.FilterPlaceholder" />
-                <button type="submit" class="btn btn-outline-secondary">
-                    <i class="bi bi-search"></i> Suchen
-                </button>
-                @if (!string.IsNullOrEmpty(filterValue))
+                @if (hasFilter)
                 {
                     <a href="@Url.Action("Index", new { moduleId, pageKey = definition.PageKey })"
-                       class="btn btn-outline-secondary">
-                        <i class="bi bi-x"></i>
+                       class="btn btn-outline-secondary" title="Filter zurücksetzen" aria-label="Filter zurücksetzen">
+                        <i class="bi bi-x-lg"></i>
                     </a>
                 }
+                <button type="submit" class="btn btn-primary px-3">Suchen</button>
             </div>
         </form>
     }
 
-    @{
-        var listCommands = definition.Commands.Where(c => !c.RequiresEntityKey).ToList();
-    }
-    @if (listCommands.Count > 0)
+    @if (rows.Count == 0)
     {
-        <div class="mb-3">
-            @foreach (var cmd in listCommands)
-            {
-                var schemaJson = System.Text.Json.JsonSerializer.Serialize(cmd.Schema ?? []);
-                <button type="button"
-                        class="btn btn-primary me-1"
-                        data-plugin-page-action="@cmd.Key"
-                        data-module-id="@moduleId"
-                        data-page-key="@definition.PageKey"
-                        data-command-key="@cmd.Key"
-                        data-command-label="@cmd.Label"
-                        data-command-schema="@schemaJson">
-                    @if (!string.IsNullOrEmpty(cmd.Icon))
-                    {
-                        <i class="bi @cmd.Icon me-1"></i>
-                    }
-                    @cmd.Label
-                </button>
-            }
+        <div class="cg-plugin-table-card card shadow-sm">
+            <div class="cg-plugin-empty text-center p-4">
+                <i class="bi bi-inbox cg-plugin-empty__icon"></i>
+                <p class="mb-0">@(hasFilter ? "Keine Treffer für deine Suche." : "Keine Einträge vorhanden.")</p>
+            </div>
         </div>
     }
-
-    <div class="card shadow-sm">
-        <div class="card-body p-0">
+    @foreach (var group in groups)
+    {
+        var groupColumns = ColumnsFor(group.Rows);
+        <div class="cg-plugin-table-card card shadow-sm mb-3">
+            @if (group.Title is not null)
+            {
+                <div class="card-header bg-white fw-semibold">@group.Title</div>
+            }
             <div class="table-responsive">
-                <table class="table table-striped align-middle mb-0">
-                    <thead class="table-dark">
+                <table class="table cg-plugin-table align-middle mb-0">
+                    <thead>
                         <tr>
-                            @foreach (var col in definition.Columns)
+                            @foreach (var col in groupColumns)
                             {
-                                <th>@col.Label</th>
-                            }
-                            @{
-                                var rowCommands = definition.Commands.Where(c => c.RequiresEntityKey).ToList();
+                                var isSorted = string.Equals(Model.SortKey, col.Key, StringComparison.OrdinalIgnoreCase);
+                                if (!col.Sortable)
+                                {
+                                    <th scope="col">@col.Label</th>
+                                }
+                                else
+                                {
+                                    var nextDir = isSorted && currentDir == "asc" ? "desc" : "asc";
+                                    <th scope="col" aria-sort="@(isSorted ? (currentDir == "asc" ? "ascending" : "descending") : "none")">
+                                        <a class="cg-plugin-table__sort text-reset text-decoration-none"
+                                           href="@Url.Action("Index", RouteFor(col.Key, nextDir, 1))">
+                                            @col.Label
+                                            @if (isSorted)
+                                            {
+                                                <i class="bi @(currentDir == "asc" ? "bi-caret-up-fill" : "bi-caret-down-fill") ms-1" aria-hidden="true"></i>
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-arrow-down-up ms-1 text-muted small" aria-hidden="true"></i>
+                                            }
+                                            <span class="visually-hidden">
+                                                @(isSorted && currentDir == "asc" ? "absteigend sortieren" : "aufsteigend sortieren")
+                                            </span>
+                                        </a>
+                                    </th>
+                                }
                             }
                             @if (rowCommands.Count > 0)
                             {
-                                <th>Aktionen</th>
+                                <th scope="col" class="cg-plugin-table__actions-head text-end">Aktionen</th>
                             }
                         </tr>
                     </thead>
                     <tbody>
-                        @if (rows.Count == 0)
+                        @foreach (var row in group.Rows)
                         {
-                            <tr>
-                                <td colspan="@(definition.Columns.Count + (rowCommands.Count > 0 ? 1 : 0))"
-                                    class="text-center text-muted py-4">
-                                    Keine Eintraege vorhanden.
-                                </td>
-                            </tr>
-                        }
-                        @foreach (var row in rows)
-                        {
-                            <tr>
-                                @foreach (var col in definition.Columns)
+                            var availableCommands = row.TryGetValue("AvailableCommands", out var availableCommandsValue)
+                                && !string.IsNullOrWhiteSpace(availableCommandsValue)
+                                    ? availableCommandsValue
+                                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                        .ToHashSet(StringComparer.OrdinalIgnoreCase)
+                                    : null;
+                            var commandArguments = row.TryGetValue("CommandArguments", out var commandArgumentsValue)
+                                ? commandArgumentsValue ?? "{}"
+                                : "{}";
+                            var isGroupHeaderRow = group.Title is not null && row == group.Rows[0];
+                            <tr class="@(isGroupHeaderRow ? "cg-plugin-table__group-header" : null)">
+                                @foreach (var col in groupColumns)
                                 {
-                                    <td>@(row.TryGetValue(col.Key, out var cellVal) ? cellVal ?? "" : "")</td>
+                                    <td data-label="@col.Label">
+                                        @{ var cellVal = row.TryGetValue(col.Key, out var cv) ? cv ?? "" : ""; }
+                                        @if (col.IsIconColumn && !string.IsNullOrWhiteSpace(cellVal))
+                                        {
+                                            <i class="bi @cellVal" aria-hidden="true"></i>
+                                        }
+                                        else
+                                        {
+                                            @cellVal
+                                        }
+                                    </td>
                                 }
                                 @if (rowCommands.Count > 0)
                                 {
                                     var entityKey = row.TryGetValue(definition.EntityKeyColumn, out var ek) ? ek ?? "" : "";
-                                    <td>
-                                        @foreach (var cmd in rowCommands)
+                                    var visibleRowCommands = rowCommands
+                                        .Where(cmd => availableCommands is null || availableCommands.Contains(cmd.Key))
+                                        .ToList();
+                                    <td class="cg-plugin-table__actions text-end">
+                                        @if (visibleRowCommands.Count == 0)
                                         {
-                                            var schemaJson = System.Text.Json.JsonSerializer.Serialize(cmd.Schema ?? []);
+                                            <span class="text-muted small">–</span>
+                                        }
+                                        @foreach (var cmd in visibleRowCommands)
+                                        {
+                                            var schemaJson = System.Text.Json.JsonSerializer.Serialize(cmd.Schema ?? [], commandSchemaJsonOptions);
                                             <a href="@Url.Action("Detail", new { moduleId, pageKey = definition.PageKey, entityKey })"
                                                class="btn btn-sm btn-outline-primary me-1"
                                                style="display:none" data-detail-link>Detail</a>
                                             <button type="button"
-                                                    class="btn btn-sm btn-outline-secondary me-1"
+                                                    class="btn btn-sm btn-outline-secondary me-1 cg-plugin-row-action"
                                                     data-plugin-page-action="@cmd.Key"
                                                     data-module-id="@moduleId"
                                                     data-page-key="@definition.PageKey"
                                                     data-command-key="@cmd.Key"
                                                     data-entity-key="@entityKey"
                                                     data-command-label="@cmd.Label"
-                                                    data-command-schema="@schemaJson">
+                                                    data-command-schema="@schemaJson"
+                                                    data-command-arguments="@commandArguments">
                                                 @if (!string.IsNullOrEmpty(cmd.Icon))
                                                 {
                                                     <i class="bi @cmd.Icon me-1"></i>
@@ -131,7 +305,83 @@
                 </table>
             </div>
         </div>
-    </div>
+    }
+
+    @if (Model.PageCount > 1)
+    {
+        <nav class="cg-plugin-pager mt-3" aria-label="Seitennavigation">
+            <ul class="pagination justify-content-center mb-0">
+                <li class="page-item @(Model.HasPreviousPage ? "" : "disabled")">
+                    <a class="page-link"
+                       href="@Url.Action("Index", RouteFor(Model.SortKey, currentDir, Model.Page - 1))"
+                       aria-label="Vorherige Seite" tabindex="@(Model.HasPreviousPage ? 0 : -1)">
+                        <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                    </a>
+                </li>
+
+                @{
+                    // A window around the current page: enough to orient, never so many that the
+                    // pager wraps on a phone.
+                    var firstShown = Math.Max(1, Model.Page - 2);
+                    var lastShown = Math.Min(Model.PageCount, firstShown + 4);
+                    firstShown = Math.Max(1, lastShown - 4);
+                }
+                @for (var p = firstShown; p <= lastShown; p++)
+                {
+                    <li class="page-item @(p == Model.Page ? "active" : "")">
+                        <a class="page-link"
+                           href="@Url.Action("Index", RouteFor(Model.SortKey, currentDir, p))"
+                           aria-current="@(p == Model.Page ? "page" : null)">@p</a>
+                    </li>
+                }
+
+                <li class="page-item @(Model.HasNextPage ? "" : "disabled")">
+                    <a class="page-link"
+                       href="@Url.Action("Index", RouteFor(Model.SortKey, currentDir, Model.Page + 1))"
+                       aria-label="Nächste Seite" tabindex="@(Model.HasNextPage ? 0 : -1)">
+                        <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                    </a>
+                </li>
+            </ul>
+            <p class="text-center text-muted small mt-2 mb-0">
+                Seite @Model.Page von @Model.PageCount
+            </p>
+        </nav>
+    }
 </div>
 
 <partial name="~/Views/PluginPage/_PluginPageActionModal.cshtml" />
+
+<script>
+    (() => {
+        const picker = document.querySelector('[data-plugin-column-picker]');
+        if (!picker) {
+            return;
+        }
+
+        picker.addEventListener('change', event => {
+            if (!event.target.matches('[data-plugin-column-toggle]')) {
+                return;
+            }
+
+            const hiddenColumns = Array.from(picker.querySelectorAll('[data-plugin-column-toggle]'))
+                .filter(input => !input.checked)
+                .map(input => input.value);
+
+            const antiForgeryToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+
+            fetch('/api/plugin/page-commands/column-preferences', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'RequestVerificationToken': antiForgeryToken
+                },
+                body: JSON.stringify({
+                    moduleId: '@moduleId',
+                    pageKey: '@definition.PageKey',
+                    hiddenColumns
+                })
+            }).then(() => window.location.reload());
+        });
+    })();
+</script>

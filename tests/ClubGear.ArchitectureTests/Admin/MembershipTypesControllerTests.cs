@@ -140,6 +140,50 @@ public sealed class MembershipTypesControllerTests
     }
 
     [Fact]
+    public async Task CreateType_PassesFeeAmountAndBillingInterval_ToService()
+    {
+        var service = new FakeMembershipTypeService
+        {
+            CreateResult = MembershipTypeOperationResult.Ok(new MembershipType { Id = 5, Key = "Foerderer", Name = "Foerderer" })
+        };
+        using var sut = BuildController(service);
+
+        await sut.CreateType(new CreateMembershipTypeInputModel
+        {
+            Key = "Foerderer",
+            Name = "Foerderer",
+            FeeAmount = 120.00m,
+            BillingInterval = "Yearly"
+        });
+
+        Assert.NotNull(service.LastCreatedType);
+        Assert.Equal(120.00m, service.LastCreatedType!.FeeAmount);
+        Assert.Equal("Yearly", service.LastCreatedType.BillingInterval);
+    }
+
+    [Fact]
+    public async Task UpdateType_PassesFeeAmountAndBillingInterval_ToService()
+    {
+        var service = new FakeMembershipTypeService
+        {
+            UpdateResult = MembershipTypeOperationResult.Ok(new MembershipType { Id = 3, Key = "Familie", Name = "Familie" })
+        };
+        using var sut = BuildController(service);
+
+        await sut.UpdateType(new UpdateMembershipTypeInputModel
+        {
+            Id = 3,
+            Name = "Familie",
+            FeeAmount = 30.00m,
+            BillingInterval = "Quarterly"
+        });
+
+        Assert.NotNull(service.LastUpdatedType);
+        Assert.Equal(30.00m, service.LastUpdatedType!.FeeAmount);
+        Assert.Equal("Quarterly", service.LastUpdatedType.BillingInterval);
+    }
+
+    [Fact]
     public async Task CreateType_ServiceReportsDuplicate_SetsErrorFeedback_AndRedirects()
     {
         var service = new FakeMembershipTypeService

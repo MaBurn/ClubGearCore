@@ -1,7 +1,9 @@
+using System.Globalization;
 using ClubGear.Models;
 using ClubGear.Plugin.Contracts;
 using ClubGear.Services.Abstractions;
 using ClubGear.Services.Plugins.Persistence;
+using Microsoft.Extensions.Options;
 
 namespace ClubGear.Services.Plugins.Runtime;
 
@@ -14,6 +16,7 @@ public sealed class PluginLifecycleService : IPluginLifecycleService
     private readonly PluginMigrationRunner _pluginMigrationRunner;
     private readonly IPluginBackgroundJobRunner _jobRunner;
     private readonly ILogger<PluginLifecycleService> _logger;
+    private readonly PluginRuntimeOptions _runtimeOptions;
 
     public PluginLifecycleService(
         IPluginStatusStore statusStore,
@@ -22,7 +25,8 @@ public sealed class PluginLifecycleService : IPluginLifecycleService
         PluginLoader pluginLoader,
         PluginMigrationRunner pluginMigrationRunner,
         IPluginBackgroundJobRunner jobRunner,
-        ILogger<PluginLifecycleService> logger)
+        ILogger<PluginLifecycleService> logger,
+        IOptions<PluginRuntimeOptions>? runtimeOptions = null)
     {
         _statusStore = statusStore;
         _runtimeRegistry = runtimeRegistry;
@@ -31,6 +35,7 @@ public sealed class PluginLifecycleService : IPluginLifecycleService
         _pluginMigrationRunner = pluginMigrationRunner;
         _jobRunner = jobRunner;
         _logger = logger;
+        _runtimeOptions = runtimeOptions?.Value ?? new PluginRuntimeOptions();
     }
 
     public async Task<IReadOnlyList<PluginLifecycleOperationResult>> LoadActivatedAsync(CancellationToken cancellationToken = default)
@@ -116,11 +121,12 @@ public sealed class PluginLifecycleService : IPluginLifecycleService
 
         _endpointRegistrar.Unregister(moduleId);
         await _jobRunner.StopJobsForModuleAsync(moduleId);
-        _runtimeRegistry.Unregister(moduleId);
+        var outcome = await _runtimeRegistry.UnregisterAsync(moduleId, cancellationToken);
 
         var target = Clone(existing);
         target.IsActive = false;
-        target.LastError = null;
+        // Deactivation always succeeds; an overrun is reported as an operator-visible note only.
+        target.LastError = outcome.Drained ? null : DescribeDrainOverrun(outcome);
         target.UpdatedAtUtc = DateTime.UtcNow;
 
         var stored = await _statusStore.UpsertAsync(target, cancellationToken);
@@ -128,10 +134,16 @@ public sealed class PluginLifecycleService : IPluginLifecycleService
         return new PluginLifecycleOperationResult(true, "deactivated", "Plugin wurde deaktiviert.", MapInstalledRecord(stored));
     }
 
+    private string DescribeDrainOverrun(PluginUnloadOutcome outcome)
+    {
+        var seconds = _runtimeOptions.DrainTimeout.TotalSeconds.ToString("0.##", CultureInfo.InvariantCulture);
+        return $"Deaktiviert, aber {outcome.InFlightAtUnload} laufende Plugin-Aufruf(e) wurden nach {seconds}s nicht beendet.";
+    }
+
     private async Task<PluginLifecycleOperationResult> LoadIntoRuntimeAsync(PluginStatusRecord target, CancellationToken cancellationToken)
     {
         _endpointRegistrar.Unregister(target.Key);
-        _runtimeRegistry.Unregister(target.Key);
+        await _runtimeRegistry.UnregisterAsync(target.Key, cancellationToken);
 
         var loadResult = await _pluginLoader.LoadAsync(target, cancellationToken);
         target.UpdatedAtUtc = DateTime.UtcNow;
@@ -158,7 +170,7 @@ public sealed class PluginLifecycleService : IPluginLifecycleService
 
         target.LastError = null;
         var stored = await _statusStore.UpsertAsync(target, cancellationToken);
-        _runtimeRegistry.Register(loadResult.LoadedPlugin.Runtime, loadResult.LoadedPlugin.Module, loadResult.LoadedPlugin.LoadContext);
+        await _runtimeRegistry.RegisterAsync(loadResult.LoadedPlugin.Runtime, loadResult.LoadedPlugin.Module, loadResult.LoadedPlugin.LoadContext, cancellationToken);
         await _jobRunner.StartJobsForModuleAsync(target.Key, cancellationToken);
         _logger.LogInformation("Plugin {PluginKey} aktiviert.", target.Key);
         return new PluginLifecycleOperationResult(true, "activated", "Plugin wurde aktiviert.", MapInstalledRecord(stored));

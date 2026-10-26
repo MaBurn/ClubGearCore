@@ -18,6 +18,9 @@
     @RenderSection("Styles", required: false)
 </head>
 <body class="d-flex flex-column min-vh-100">
+    <form id="globalAntiForgeryForm" class="d-none" aria-hidden="true">
+        @Html.AntiForgeryToken()
+    </form>
     @{
         var hasAdminRole = false;
         if (User.Identity?.IsAuthenticated == true)
@@ -70,17 +73,44 @@
                         <li class="nav-item">
                             <a class="nav-link" asp-controller="Members" asp-action="Index">Mitglieder</a>
                         </li>
+                        @if (User.Identity?.IsAuthenticated == true)
+                        {
+                            <li class="nav-item">
+                                @await Component.InvokeAsync("InboxBadge")
+                            </li>
+                        }
                         <li class="nav-item">
                             <a class="nav-link" asp-controller="Home" asp-action="Privacy">Datenschutz</a>
                         </li>
                         @{
                             var pluginNavEntries = await PluginNavEntryService.GetVisibleNavEntriesAsync(User, Context.RequestAborted);
                         }
-                        @foreach (var entry in pluginNavEntries)
+                        @foreach (var navGroup in pluginNavEntries.GroupBy(entry =>
+                            string.IsNullOrWhiteSpace(entry.GroupKey) ? $"entry:{entry.Route}" : $"group:{entry.GroupKey}"))
                         {
-                            <li class="nav-item">
-                                <a class="nav-link" href="@entry.Route"><i class="bi @entry.Icon"></i> @entry.Label</a>
-                            </li>
+                            var groupedEntries = navGroup.ToList();
+                            var firstEntry = groupedEntries[0];
+                            if (string.IsNullOrWhiteSpace(firstEntry.GroupKey))
+                            {
+                                <li class="nav-item">
+                                    <a class="nav-link" href="@firstEntry.Route"><i class="bi @firstEntry.Icon"></i> @firstEntry.Label</a>
+                                </li>
+                            }
+                            else
+                            {
+                                var dropdownId = $"pluginNavDropdown-{firstEntry.GroupKey}";
+                                <li class="nav-item dropdown">
+                                    <a class="nav-link dropdown-toggle" href="#" id="@dropdownId" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi @(firstEntry.GroupIcon ?? firstEntry.Icon)"></i> @(firstEntry.GroupLabel ?? firstEntry.Label)
+                                    </a>
+                                    <ul class="dropdown-menu" aria-labelledby="@dropdownId">
+                                        @foreach (var entry in groupedEntries)
+                                        {
+                                            <li><a class="dropdown-item" href="@entry.Route"><i class="bi @entry.Icon me-1"></i> @entry.Label</a></li>
+                                        }
+                                    </ul>
+                                </li>
+                            }
                         }
                         @if (canAccessPluginAdmin)
                         {
@@ -93,6 +123,7 @@
                                     <li><a class="dropdown-item" asp-controller="Admin" asp-action="Functions">Admin-Funktionen</a></li>
                                     <li><a class="dropdown-item" asp-controller="Members" asp-action="Index">Mitgliederverwaltung</a></li>
                                     <li><a class="dropdown-item" asp-controller="PluginAdmin" asp-action="Index">Plugins</a></li>
+                                    <li><a class="dropdown-item" asp-controller="ExternalLoginAdmin" asp-action="Index">Externe Anmeldung</a></li>
                                     <li><a class="dropdown-item" asp-controller="RolePermissions" asp-action="Index">Berechtigungen</a></li>
                                     <li><a class="dropdown-item" asp-controller="MembershipTypes" asp-action="Index">Mitgliedsarten</a></li>
                                 </ul>
@@ -113,7 +144,7 @@
 
     <footer class="footer py-3">
         <div class="container">
-            <p class="mb-0">&copy; @DateTime.Now.Year - ClubGear | <a asp-controller="Home" asp-action="Privacy">Datenschutz</a></p>
+            <p class="mb-0">&copy; @DateTime.Now.Year - ClubGear <span class="text-muted">@ClubGear.Services.Core.AppVersion.Current</span> | <a asp-controller="Home" asp-action="Privacy">Datenschutz</a></p>
         </div>
     </footer>
     <div class="footer-bar"></div>

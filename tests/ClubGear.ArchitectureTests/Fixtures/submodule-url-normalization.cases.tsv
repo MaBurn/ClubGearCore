@@ -1,0 +1,48 @@
+# Shared normalisation vectors for plugin submodule remote URLs.
+# Format: <raw><TAB><expected canonical>. Lines starting with '#' are comments; blank lines are ignored.
+# Consumers (both must agree on every row, that is the point of this file):
+#   - C# (authoritative): PluginBoundaryTests.NormalizeRemoteUrl, driven by
+#     SubmoduleUrlNormalization_ShouldMatch_SharedVectors.
+#   - shell (parity mirror): the normalize() function in the 'submodules' validate job of .gitlab-ci.yml.
+# The rule, in this exact order: trim leading/trailing whitespace; drop one trailing '/';
+# drop one trailing '.git'; drop scheme up to and including the first '://'; in the segment before the
+# first '/', drop everything up to and including the LAST '@'; in that same segment rewrite the scp-style
+# ':' separator to '/' (only when no '://' scheme was present, so an explicit port survives);
+# collapse runs of '/'; lowercase.
+
+# The declared form in .gitmodules:13-15 -- the canonical baseline every other row is compared against.
+git@git.maxbrenne.de:clubgear/plugin-finance.git	git.maxbrenne.de/clubgear/plugin-finance
+
+# The GIT_SUBMODULE_FORCE_HTTPS CI rewrite (.gitlab-ci.yml:31). MUST canonicalise equal to the row above.
+https://gitlab-ci-token:AbC-123@git.maxbrenne.de/clubgear/plugin-finance.git	git.maxbrenne.de/clubgear/plugin-finance
+
+# Scheme-form SSH with an explicit port. Deliberately NOT equal to the declared form: a port is a real
+# difference, and this repository never declares one. The ':' here is a port, not an scp separator.
+ssh://git@git.maxbrenne.de:22/clubgear/plugin-finance.git	git.maxbrenne.de:22/clubgear/plugin-finance
+
+# Anonymous HTTPS: no credentials, no trailing '.git'.
+https://git.maxbrenne.de/clubgear/plugin-finance	git.maxbrenne.de/clubgear/plugin-finance
+
+# The CORE-23 defect: a local absolute path. The leading '/' survives every step, so it can never
+# compare equal to a host-rooted form.
+/Users/max/Code/ClubGear/plugins/Finance	/users/max/code/clubgear/plugins/finance
+
+# A relative submodule URL: not normalisable to a host, therefore a violation if it ever appears.
+../plugin-finance.git	../plugin-finance
+
+# Case folding. GitLab routes group/project case-insensitively, and both compared sides derive from the
+# same declared string, so lowering cannot produce a false pass for a genuinely different remote.
+GIT@Git.MaxBrenne.DE:ClubGear/Plugin-Finance.git	git.maxbrenne.de/clubgear/plugin-finance
+
+# One trailing '/' is dropped before the trailing '.git' -- step order matters.
+git@git.maxbrenne.de:clubgear/plugin-finance.git/	git.maxbrenne.de/clubgear/plugin-finance
+
+# Credential stripping deletes to the LAST '@' in the segment: a CI token may itself contain '@'.
+https://gitlab-ci-token:AbC@123@git.maxbrenne.de/clubgear/plugin-iamoidc.git	git.maxbrenne.de/clubgear/plugin-iamoidc
+
+# Runs of two or more '/' collapse to one.
+https://git.maxbrenne.de//clubgear//plugin-carinfo.git	git.maxbrenne.de/clubgear/plugin-carinfo
+
+# The ':'->'/' rewrite is scoped to the segment before the first '/', so a colon inside a filesystem
+# path is left alone and cannot collide with a host:path form.
+/Users/max/weird:dir/plugins/Finance	/users/max/weird:dir/plugins/finance

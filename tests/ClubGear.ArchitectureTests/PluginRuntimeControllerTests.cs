@@ -21,7 +21,7 @@ public sealed class PluginRuntimeControllerTests
         var registrar = new PluginEndpointRegistrar(adapter, registry);
         var module = new TestPluginModule("plugin.runtime.http");
 
-        registry.Register(
+        await registry.RegisterAsync(
             new RegisteredPluginRuntime(
                 module.Manifest.ModuleId,
                 module.Manifest.DisplayName,
@@ -69,7 +69,7 @@ public sealed class PluginRuntimeControllerTests
         var registrar = new PluginEndpointRegistrar(adapter, registry);
         var module = new TestPluginModule("plugin.runtime.http");
 
-        registry.Register(
+        await registry.RegisterAsync(
             new RegisteredPluginRuntime(
                 module.Manifest.ModuleId,
                 module.Manifest.DisplayName,

@@ -4,6 +4,8 @@ using ClubGear.Plugin.Contracts;
 using ClubGear.Services.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace ClubGear.Services.Plugins.Runtime;
 
@@ -15,8 +17,11 @@ internal sealed class PluginBackgroundJobRunner : IPluginBackgroundJobRunner
             "System"));
 
     private readonly IPluginRuntimeRegistry _runtimeRegistry;
+    private readonly IPluginContributionActivator _contributionActivator;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly CancellationToken _appStopping;
+    private readonly PluginRuntimeOptions _options;
+    private readonly ILogger<PluginBackgroundJobRunner> _logger;
 
     // Keyed by "moduleId::jobKey"
     private readonly ConcurrentDictionary<string, PluginJobEntry> _jobs = new(StringComparer.OrdinalIgnoreCase);
@@ -26,16 +31,23 @@ internal sealed class PluginBackgroundJobRunner : IPluginBackgroundJobRunner
 
     public PluginBackgroundJobRunner(
         IPluginRuntimeRegistry runtimeRegistry,
+        IPluginContributionActivator contributionActivator,
         IServiceScopeFactory scopeFactory,
-        IHostApplicationLifetime hostApplicationLifetime)
+        IHostApplicationLifetime hostApplicationLifetime,
+        IOptions<PluginRuntimeOptions>? options = null,
+        ILogger<PluginBackgroundJobRunner>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(runtimeRegistry);
+        ArgumentNullException.ThrowIfNull(contributionActivator);
         ArgumentNullException.ThrowIfNull(scopeFactory);
         ArgumentNullException.ThrowIfNull(hostApplicationLifetime);
 
         _runtimeRegistry = runtimeRegistry;
+        _contributionActivator = contributionActivator;
         _scopeFactory = scopeFactory;
         _appStopping = hostApplicationLifetime.ApplicationStopping;
+        _options = options?.Value ?? new PluginRuntimeOptions();
+        _logger = logger ?? NullLogger<PluginBackgroundJobRunner>.Instance;
     }
 
     public Task StartJobsForModuleAsync(string moduleId, CancellationToken cancellationToken = default)
@@ -82,36 +94,43 @@ internal sealed class PluginBackgroundJobRunner : IPluginBackgroundJobRunner
             .Where(k => k.StartsWith(moduleId + "::", StringComparison.OrdinalIgnoreCase))
             .ToArray();
 
-        var pendingTasks = new List<Task>(keysToRemove.Length);
+        var pending = new List<(string JobKey, Task Task)>(keysToRemove.Length);
         foreach (var key in keysToRemove)
         {
             if (_jobs.TryRemove(key, out var entry) && entry.Task is { } t)
             {
-                pendingTasks.Add(t);
+                pending.Add((entry.JobKey, t));
             }
         }
 
-        if (pendingTasks.Count > 0)
+        if (pending.Count > 0)
         {
-            // Await with a 5-second timeout.
-            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            // Await within the configured drain budget (Plugins:Drain:TimeoutSeconds).
+            using var timeoutCts = new CancellationTokenSource(_options.DrainTimeout);
             try
             {
-                await Task.WhenAll(pendingTasks).WaitAsync(timeoutCts.Token);
+                await Task.WhenAll(pending.Select(p => p.Task)).WaitAsync(timeoutCts.Token);
             }
             catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
             {
-                // Timeout expired — jobs did not finish in time. Proceed anyway.
+                // Budget expired — jobs did not finish in time. Proceed anyway, but say so:
+                // silently abandoning them used to make a hanging job invisible.
+                var unfinished = pending
+                    .Where(p => !p.Task.IsCompleted)
+                    .Select(p => p.JobKey)
+                    .ToArray();
+
+                _logger.LogWarning(
+                    "Plugin {PluginKey}: {UnfinishedCount} Hintergrundjob(s) wurden nach {DrainSeconds}s nicht beendet: {JobKeys}.",
+                    moduleId,
+                    unfinished.Length,
+                    _options.DrainTimeout.TotalSeconds,
+                    string.Join(", ", unfinished));
             }
             catch (Exception)
             {
                 // Individual job faults are captured inside RunJobAsync; swallow here.
             }
-        }
-
-        foreach (var entry in pendingTasks.Select(_ => default(object)))
-        {
-            // entries already removed above
         }
 
         // Mark remaining entries (if any were added concurrently) as Stopped.
@@ -143,12 +162,17 @@ internal sealed class PluginBackgroundJobRunner : IPluginBackgroundJobRunner
 
         try
         {
-            var job = _runtimeRegistry.CreateMemberProvider<IPluginBackgroundJob>(entry.ModuleId, entry.JobType);
+            // CORE-18. The job instance comes from a lease, so the module stays counted as busy
+            // for as long as the job runs. The per-module CTS from CORE-17 still runs first: it
+            // asks the job to stop, and the lease then makes deactivation wait for it.
+            await using var lease = _contributionActivator.Rent<IPluginBackgroundJob>(
+                entry.ModuleId, entry.JobType, SystemPrincipal);
 
-            if (job is null)
+            if (lease.Instance is not { } job)
             {
                 entry.State = PluginJobRunState.Faulted;
-                entry.LastError = $"Could not resolve job type '{entry.JobType}' for module '{entry.ModuleId}'.";
+                entry.LastError = lease.Error
+                    ?? $"Could not resolve job type '{entry.JobType}' for module '{entry.ModuleId}'.";
                 return;
             }
 

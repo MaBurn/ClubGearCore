@@ -83,6 +83,8 @@ public sealed class MembershipTypeService : IMembershipTypeService
             IsActive = type.IsActive,
             AllowsSubMembers = type.AllowsSubMembers,
             SubMemberLabel = string.IsNullOrWhiteSpace(type.SubMemberLabel) ? null : type.SubMemberLabel.Trim(),
+            FeeAmount = NormalizeFeeAmount(type.FeeAmount),
+            BillingInterval = NormalizeBillingInterval(type.BillingInterval),
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         };
@@ -116,6 +118,8 @@ public sealed class MembershipTypeService : IMembershipTypeService
         existing.IsActive = updated.IsActive;
         existing.AllowsSubMembers = updated.AllowsSubMembers;
         existing.SubMemberLabel = string.IsNullOrWhiteSpace(updated.SubMemberLabel) ? null : updated.SubMemberLabel.Trim();
+        existing.FeeAmount = NormalizeFeeAmount(updated.FeeAmount);
+        existing.BillingInterval = NormalizeBillingInterval(updated.BillingInterval);
         existing.UpdatedAtUtc = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -265,5 +269,18 @@ public sealed class MembershipTypeService : IMembershipTypeService
         await _db.SaveChangesAsync(cancellationToken);
 
         return MembershipTypeFieldOperationResult.Ok(existing);
+    }
+
+    // A fee is only meaningful when non-negative; a negative or zero-cleared amount is normalized
+    // back to "no fee configured" (null) so pre-existing types and cleared inputs stay valid.
+    private static decimal? NormalizeFeeAmount(decimal? feeAmount)
+        => feeAmount is > 0 ? feeAmount : null;
+
+    // BillingInterval is constrained to the two supported cadences; anything else (including a
+    // blank submission) is normalized to null so the column never carries an unsupported value.
+    private static string? NormalizeBillingInterval(string? billingInterval)
+    {
+        var value = billingInterval?.Trim();
+        return value is "Yearly" or "Quarterly" ? value : null;
     }
 }

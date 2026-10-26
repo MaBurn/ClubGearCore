@@ -10,6 +10,20 @@
         ?? Array.Empty<SelfServicePluginSectionView>();
     var selfServiceActionEndpoint = ViewData["SelfServiceActionEndpoint"] as string
         ?? "/api/self-service/plugin-self-service-actions";
+    var selfServiceModuleIds = selfServiceSections
+        .Select(section => section.ModuleId)
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var pluginSlotsForProfile = selfServiceModuleIds.Count == 0
+        ? pluginSlots
+        : new MemberPluginSlotSnapshot(
+            pluginSlots.StatusBadges,
+            pluginSlots.DetailCards,
+            pluginSlots.EditTabs
+                .Where(tab => !selfServiceModuleIds.Contains(tab.ModuleId))
+                .ToArray(),
+            pluginSlots.Actions
+                .Where(action => !selfServiceModuleIds.Contains(action.ModuleId))
+                .ToArray());
 
     var initials = string.Join(string.Empty, (Model.FullName ?? string.Empty)
         .Split(' ', StringSplitOptions.RemoveEmptyEntries)
@@ -230,37 +244,38 @@
                         </div>
                     </div>
 
-                    @if (pluginSlots.EditTabs.Count > 0)
-                    {
-                        <div data-selfservice-plugin-host>
-                            <partial name="~/Views/Members/_PluginSlots.cshtml" model="pluginSlots" />
-                        </div>
-                    }
-
-                    @foreach (var sv in selfServiceSections.OrderBy(s => s.SortOrder).ThenBy(s => s.ModuleId))
-                    {
-                        <div class="card shadow-sm mb-4" id="plugin-selfservice-@sv.Section.Key"
-                             data-selfservice-action-endpoint="@selfServiceActionEndpoint">
-                            <div class="card-header">
-                                <h6 class="mb-0">@sv.Section.Title</h6>
-                            </div>
-                            <div class="card-body">
-                                @Html.Raw(sv.Section.HtmlBody)
-                            </div>
-                        </div>
-                    }
                 </div>
             </div>
 
             <div class="d-flex justify-content-end gap-2 mt-2">
                 <a asp-action="Index" class="btn btn-outline-secondary">Zurueck</a>
-                <button type="submit" class="btn btn-primary">Profil speichern</button>
+                <button type="submit" form="editProfileForm" class="btn btn-primary">Profil speichern</button>
             </div>
         </form>
+
+        @if (pluginSlotsForProfile.EditTabs.Count > 0)
+        {
+            <div data-selfservice-plugin-host>
+                <partial name="~/Views/Members/_PluginSlots.cshtml" model="pluginSlotsForProfile" />
+            </div>
+        }
+
+        @foreach (var sv in selfServiceSections.OrderBy(s => s.SortOrder).ThenBy(s => s.ModuleId))
+        {
+            <div class="card shadow-sm mb-4" id="plugin-selfservice-@sv.Section.Key"
+                 data-selfservice-action-endpoint="@selfServiceActionEndpoint">
+                <div class="card-header">
+                    <h6 class="mb-0">@sv.Section.Title</h6>
+                </div>
+                <div class="card-body">
+                    @Html.Raw(sv.Section.HtmlBody)
+                </div>
+            </div>
+        }
     </section>
 </div>
 
-<partial name="~/Views/Members/_PluginActionModal.cshtml" model="pluginSlots" />
+<partial name="~/Views/Members/_PluginActionModal.cshtml" model="pluginSlotsForProfile" />
 
 <div id="savingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-none" style="background: rgba(0, 0, 0, 0.45); z-index: 2000;">
     <div class="h-100 d-flex justify-content-center align-items-center">

@@ -2,7 +2,7 @@
 
 Audience: Entwickler, Architekten
 Scope: Alle Core-Services, Feature-Services, Plugin-Facades und das Berechtigungssystem
-Last-Validated: 2026-07-09
+Last-Validated: 2026-08-05
 Source-Commit: working-tree docs refresh
 Related-Diagrams: diagrams/img/cmp-core-services.png, diagrams/img/seq-request-flow.png
 
@@ -155,29 +155,75 @@ Laufzeitstatus ist in der Plugin-Admin-Detailansicht (`/PluginAdmin/Detail/{key}
 
 **Datei:** `Services/ExternalLogin/ExternalLoginConfigService.cs`
 
-Liest und schreibt OIDC-Provider-Konfiguration in `SystemConfigEntry`-Zeilen unter `Section = "externallogin.{providerKey}"`. Schluessel: `authority`, `clientid`, `clientsecret`, `active`.
+Liest und schreibt OIDC-Provider-Konfiguration in `SystemConfigEntry`-Zeilen unter
+`Section = "externallogin.{providerKey}"`. Vom Handler ausgewertete Schluessel sind `authority`,
+`clientid` und `clientsecret`; der Aktivierungsstatus liegt unter `enabled`. Beim Speichern wird
+der Cache der named `OpenIdConnectOptions` fuer diesen Provider verworfen. Ein bereits
+gespeichertes Secret bleibt erhalten, wenn das maskierte Secret-Feld leer abgesendet wird.
 
-Methoden: `GetProviderAsync`, `SaveProviderAsync`, `ListProvidersAsync`, `GetActiveProvidersAsync`, `TestConnectionAsync`.
+Methoden: `GetConfigAsync`, `SaveConfigAsync`, `TestConnectionAsync` und
+`GetAllDeclaredProvidersAsync`. `GetActiveProvidersAsync` gehoert zu `IExternalLoginService`.
 
 ### IExternalLoginService / ExternalLoginService
 
 **Datei:** `Services/ExternalLogin/ExternalLoginService.cs`
 
 Verwaltet den OIDC-Challenge/Callback-Flow:
-- `ChallengeAsync` — gibt eine `ChallengeResult`-Redirect-URL zum konfigurierten OIDC-Provider zurueck
-- `HandleCallbackAsync` — verarbeitet den OIDC-Callback, ruft `IIdpClaimsEnricher` auf, verknuepft oder erstellt `Member` via `OauthID`-Unique-Key, gibt `ExternalLoginOutcome` zurueck
+- `RegisterDeclaredSchemesAsync` — registriert beim Startup nach dem Plugin-Load alle eindeutigen,
+  verfuegbaren, aktivierten und core-seitig syntaktisch/transportseitig validierten Provider-
+  Schemes. Authority-URLs muessen HTTPS
+  verwenden; HTTP ist nur fuer Loopback-Entwicklung erlaubt. Dadurch bleibt der Remote-Callback
+  nach Restart und auf frisch gestarteten Knoten routbar, ohne dass eine defekte Konfiguration
+  die Authentication-Middleware blockiert.
+- `BuildChallengeAsync` — validiert Providerstatus und die vollstaendige OIDC-Konfiguration, registriert bei
+  Bedarf das named Scheme `oidc.{providerKey}` als Fallback fuer spaeter aktivierte Provider und
+  liefert `AuthenticationProperties`; der Account-Controller erzeugt daraus den `ChallengeResult`.
+- `HandleCallbackAsync` — liest die temporaere externe Identity, ruft `IIdpClaimsEnricher` auf,
+  sucht ein vorhandenes `Member` ueber den effektiven `OauthID`-Wert und erzeugt ueber dessen
+  `ApplicationUserId` eine lokale Application-Session. Es werden weder Member noch ApplicationUser
+  automatisch angelegt oder verknuepft. Das externe Cookie wird vor der weiteren Verarbeitung
+  entfernt; deaktivierte, mehrdeutige oder nicht verfuegbare Provider werden erneut abgewiesen.
+
+Wiederholte Claims werden im stringbasierten Contract als JSON-Array-String dargestellt.
+Der OIDC-Optionspfad entfernt die frameworkseitige Standard-Loeschregel fuer den bereits
+validierten `iss`-Claim, damit Provider-Mapper globale Link-Keys sicher nach Issuer namespacen.
+Plugin-Mappingfehler beenden den Login. Ein vom Plugin gemappter `sub` bestimmt den
+`Member.OauthID`-Lookup. Nicht reservierte Profilclaims werden der lokalen Session beigefuegt;
+lokale Identitaets-, Rollen- und Permission-Claimtypen werden hostseitig verworfen. Diese Filter
+verhindern direkte Rechte-Claim-Injection; das vom Mapper gelieferte `sub` bleibt dennoch eine
+sicherheitskritische Trust Boundary, weil es das verknuepfte lokale Konto bestimmt. Vor dem Cookie
+gelten `CanSignInAsync`, Lockout und ein fail-closed Gate fuer lokale Zwei-Faktor-Konten.
 
 ### IIdpClaimsEnricher / IdpClaimsEnricher
 
 **Datei:** `Services/ExternalLogin/IdpClaimsEnricher.cs`
 
-Iteriert alle `IIdentityProviderPlugin`-Contributions aktiver Plugins und ruft `MapClaimsAsync` auf. Jedes Plugin kann den Login-Kontext mit Custom-Claims anreichern. Fehler werden per Sink-Muster isoliert.
+Iteriert die `IIdentityProviderPlugin`-Contributions aktiver Plugins und ruft den eindeutig
+passenden Provider-Key ueber `MapClaimsAsync` auf. Doppelte Keys werden bereits in der
+Provider-Projektion als nicht verfuegbar markiert. Ein fehlender Provider-Typ, ein abweichender
+Interface-Key, Exceptions und ein `null`-Mapping propagieren zum `ExternalLoginService`, der den
+Login fail-closed als Providerfehler beendet.
 
 ### OidcOptionsReloader
 
 **Datei:** `Services/ExternalLogin/OidcOptionsReloader.cs`
 
-`IConfigureNamedOptions<OpenIdConnectOptions>` — liest `authority`, `clientid`, `clientsecret` aus `SystemConfigEntry` und schreibt sie zur Request-Zeit in die OIDC-Handler-Options. Ermoeglicht Aenderung der OIDC-Konfiguration ohne App-Neustart. Das OIDC-Scheme `"oidc.generic"` wird bei App-Start mit Platzhalter-Werten registriert und erst zur Laufzeit durch diesen Reloader befuellt.
+`IPostConfigureOptions<OpenIdConnectOptions>` — liest `enabled`, `authority`, `clientid` und
+`clientsecret` case-insensitiv aus der Provider-Section in `SystemConfigEntry`, setzt das externe Sign-in-Scheme
+und verwendet pro Provider den
+Callback-Pfad `/signin-oidc-{providerKey}`. `ExternalLoginConfigService.SaveConfigAsync` entfernt
+die betroffenen named Options aus dem Cache; `SystemConfigService` tut dasselbe auch fuer andere
+Schreib- und Loeschpfade. Gespeicherte Aenderungen werden so ohne App-Neustart beim naechsten
+Handlerzugriff wirksam. Deaktivierte, unvollstaendige, unsichere oder wegen eines Lesefehlers
+nicht materialisierbare Schemes erhalten statische, nichtwerfende Quarantaene-Options. Der normale
+ClubGear-Challenge-Pfad weist sie ab; eine direkte oder race-bedingte Handler-Challenge bleibt
+inert. Sie koennen damit die globale Authentication-Middleware und Reparatur-UI nicht lahmlegen.
+`oidc.generic` registriert den Handler-Typ vor `app.Build()`. Konkrete
+Schemes `oidc.{providerKey}` werden nach dem Plugin-Load beim Startup und fuer spaeter aktivierte
+Provider zusaetzlich beim Challenge registriert.
+
+Die praktische Provider-Anleitung steht in
+[Identity-Provider-Plugins (OpenID Connect)](identity-provider-plugins.md).
 
 ### IPermissionService / DatabasePermissionService
 

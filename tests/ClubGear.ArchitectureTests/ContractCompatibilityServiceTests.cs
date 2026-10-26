@@ -40,4 +40,18 @@ public sealed class ContractCompatibilityServiceTests
         Assert.False(result.IsCompatible);
         Assert.Contains("below minimum supported version", result.Reason);
     }
+
+    [Fact]
+    public void Validate_ReturnsIncompatible_ForContractNewerThanHost()
+    {
+        var pluginVersion = new Version(
+            ContractVersion.Current.Major,
+            ContractVersion.Current.Minor + 1,
+            0);
+
+        var result = _sut.Validate(pluginVersion);
+
+        Assert.False(result.IsCompatible);
+        Assert.Contains("requires a newer host contract", result.Reason);
+    }
 }

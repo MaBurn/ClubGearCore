@@ -1,4 +1,6 @@
 @using ClubGear.Plugin.Contracts
+@using System.Text.Json
+@using System.Text.Json.Serialization
 @model (PluginPageDefinition Definition, IReadOnlyDictionary<string, string?> Row, string ModuleId, string EntityKey)
 @{
     var definition = Model.Definition;
@@ -6,47 +8,88 @@
     var moduleId = Model.ModuleId;
     var entityKey = Model.EntityKey;
     ViewData["Title"] = definition.Title + " — Detail";
+
+    // See Index.cshtml: _PluginPageActionModal.cshtml's JS expects camelCase property names and
+    // plain enum-name strings, not JsonSerializer.Serialize's PascalCase/integer-enum defaults.
+    var commandSchemaJsonOptions = new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Converters = { new JsonStringEnumConverter() }
+    };
+
+    var rowCommands = definition.Commands.Where(c => c.RequiresEntityKey).ToList();
+    var availableCommands = row.TryGetValue("AvailableCommands", out var availableCommandsValue)
+        && !string.IsNullOrWhiteSpace(availableCommandsValue)
+            ? availableCommandsValue
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : null;
+    var commandArguments = row.TryGetValue("CommandArguments", out var commandArgumentsValue)
+        ? commandArgumentsValue ?? "{}"
+        : "{}";
+    var visibleRowCommands = rowCommands
+        .Where(cmd => availableCommands is null || availableCommands.Contains(cmd.Key))
+        .ToList();
 }
 
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2>@definition.Title</h2>
-        <a href="@Url.Action("Index", new { moduleId, pageKey = definition.PageKey })"
-           class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left me-1"></i> Zurueck
-        </a>
-    </div>
+<div class="cg-page cg-plugin-page">
+    <section class="cg-plugin-hero mb-3">
+        <div class="cg-plugin-hero__intro">
+            <p class="cg-plugin-hero__eyebrow mb-1">Detailansicht</p>
+            <h1 class="cg-page-title cg-plugin-hero__title">@definition.Title</h1>
+        </div>
+        <div class="cg-plugin-hero__actions">
+            <a href="@Url.Action("Index", new { moduleId, pageKey = definition.PageKey })"
+               class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Zurück
+            </a>
+        </div>
+    </section>
 
-    <div class="card shadow-sm mb-4">
+    <div class="cg-plugin-table-card card shadow-sm mb-3">
         <div class="card-body">
-            <dl class="row">
+            <dl class="cg-plugin-detail-grid mb-0">
                 @foreach (var col in definition.Columns)
                 {
-                    <dt class="col-sm-3">@col.Label</dt>
-                    <dd class="col-sm-9">@(row.TryGetValue(col.Key, out var val) ? val ?? "" : "")</dd>
+                    var value = row.TryGetValue(col.Key, out var val) ? val ?? "" : "";
+                    <div class="cg-plugin-detail-grid__item">
+                        <dt>@col.Label</dt>
+                        <dd class="mb-0">
+                            @if (string.IsNullOrWhiteSpace(value))
+                            {
+                                @("–")
+                            }
+                            else if (col.IsIconColumn)
+                            {
+                                <i class="bi @value" aria-hidden="true"></i>
+                            }
+                            else
+                            {
+                                @value
+                            }
+                        </dd>
+                    </div>
                 }
             </dl>
         </div>
     </div>
 
-    @{
-        var rowCommands = definition.Commands.Where(c => c.RequiresEntityKey).ToList();
-    }
-    @if (rowCommands.Count > 0)
+    @if (visibleRowCommands.Count > 0)
     {
-        <div class="mb-3">
-            @foreach (var cmd in rowCommands)
+        <div class="cg-plugin-detail-actions d-flex flex-wrap gap-2">
+            @foreach (var cmd in visibleRowCommands)
             {
-                var schemaJson = System.Text.Json.JsonSerializer.Serialize(cmd.Schema ?? []);
+                var schemaJson = System.Text.Json.JsonSerializer.Serialize(cmd.Schema ?? [], commandSchemaJsonOptions);
                 <button type="button"
-                        class="btn btn-outline-secondary me-1"
+                        class="btn btn-outline-secondary"
                         data-plugin-page-action="@cmd.Key"
                         data-module-id="@moduleId"
                         data-page-key="@definition.PageKey"
                         data-command-key="@cmd.Key"
                         data-entity-key="@entityKey"
                         data-command-label="@cmd.Label"
-                        data-command-schema="@schemaJson">
+                        data-command-schema="@schemaJson"
+                        data-command-arguments="@commandArguments">
                     @if (!string.IsNullOrEmpty(cmd.Icon))
                     {
                         <i class="bi @cmd.Icon me-1"></i>

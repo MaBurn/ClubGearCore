@@ -509,6 +509,9 @@ public sealed class MemberFeatureService : IMemberFeatureService
 
         tracked.FirstName = member.FirstName;
         tracked.LastName = member.LastName;
+        // A corrected address makes the "undeliverable" verdict obsolete, so the invalid flag
+        // clears itself here rather than needing a separate admin action.
+        MemberEmailInvalidationService.ResetInvalidOnChange(tracked, member.Email);
         tracked.Email = member.Email;
         tracked.PhoneNumber = member.PhoneNumber;
         tracked.DateOfBirth = member.DateOfBirth;
@@ -876,6 +879,7 @@ public sealed class MemberFeatureService : IMemberFeatureService
             existing.Title = title;
             existing.FirstName = firstName;
             existing.LastName = lastName;
+            MemberEmailInvalidationService.ResetInvalidOnChange(existing, email);
             existing.Email = email;
             existing.PhoneNumber = phone;
             existing.Gender = gender;

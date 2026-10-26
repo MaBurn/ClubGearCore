@@ -3,18 +3,28 @@ using System.Runtime.Loader;
 using ClubGear.Plugin.Contracts;
 using ClubGear.Models;
 using ClubGear.Services.Abstractions;
+using ClubGear.Services.Plugins;
 
 namespace ClubGear.Services.Plugins.Runtime;
 
 public sealed class PluginLoader
 {
     private readonly IPluginPackageStore _packageStore;
+    private readonly IContractCompatibilityService _contractCompatibility;
     private readonly ILogger<PluginLoader> _logger;
 
-    public PluginLoader(IPluginPackageStore packageStore, ILogger<PluginLoader> logger)
+    // The compatibility service is optional so the many call sites that only need a loader can
+    // keep using `new PluginLoader(store, logger)`; DI supplies the registered implementation and
+    // a test can substitute one. The default is the real service, so the contract floor applies
+    // everywhere unless a test deliberately opts out.
+    public PluginLoader(
+        IPluginPackageStore packageStore,
+        ILogger<PluginLoader> logger,
+        IContractCompatibilityService? contractCompatibility = null)
     {
         _packageStore = packageStore;
         _logger = logger;
+        _contractCompatibility = contractCompatibility ?? new ContractCompatibilityService();
     }
 
     public async Task<PluginLoadResult> LoadAsync(PluginStatusRecord record, CancellationToken cancellationToken = default)
@@ -35,7 +45,7 @@ public sealed class PluginLoader
         {
             var extractionPath = await _packageStore.EnsureExtractedAsync(record.Key, record.PackageHash, record.PackagePath, cancellationToken);
             var loadContext = new PluginAssemblyLoadContext(record.Key, extractionPath);
-            var module = CreateModuleInstance(loadContext, extractionPath, record.EntryPoint, out var error);
+            var module = CreateModuleInstance(loadContext, extractionPath, record.Key, record.EntryPoint, out var error);
             if (module is null)
             {
                 loadContext.Unload();
@@ -49,8 +59,50 @@ public sealed class PluginLoader
                     $"Manifest-Schluessel '{module.Manifest.Key}' passt nicht zum installierten Plugin '{record.Key}'.");
             }
 
+            // CORE-18. The install-time check in PluginInstallerService only ever sees a package
+            // once. An already-installed plugin is never re-gated, so raising the contract floor
+            // alone would let a stale plugin reach the constructor check and be reported as
+            // "no (IPluginHostContext) constructor" — true, but the wrong diagnosis. Checking the
+            // floor here makes the 1.13.0 break surface as a legible version rejection.
+            var compatibility = _contractCompatibility.Validate(module.Manifest.RequiredContractVersion);
+            if (!compatibility.IsCompatible)
+            {
+                loadContext.Unload();
+                return PluginLoadResult.CreateFailure(
+                    $"Plugin '{record.Key}' ist nicht mit dieser Host-Version kompatibel: "
+                    + $"Es verlangt Contract >= {module.Manifest.RequiredContractVersion}, der Host unterstuetzt "
+                    + $"{ContractVersion.MinimumSupported} bis {ContractVersion.Current}. "
+                    + $"{compatibility.Reason}");
+            }
+
             var collector = new PluginContributionCollector();
             module.RegisterContributions(collector);
+
+            // CORE-13. An unknown capability key is a load-time rejection, not a silent no-op:
+            // a plugin whose provider is never reachable would otherwise look installed and
+            // healthy while doing nothing.
+            var unknownCapability = collector.Services
+                .FirstOrDefault(service => !PluginCapabilityKeys.IsKnown(service.Key));
+
+            if (unknownCapability is not null)
+            {
+                loadContext.Unload();
+                return PluginLoadResult.CreateFailure(
+                    $"Plugin '{record.Key}' deklariert die unbekannte Capability '{unknownCapability.Key}'. "
+                    + $"Erlaubt sind: {string.Join(", ", PluginCapabilityKeys.All.OrderBy(key => key, StringComparer.Ordinal))}.");
+            }
+
+            // CORE-16. Every type the plugin declares as a contribution is gated before it can be
+            // registered: it has to exist in the module's own assembly, and it has to pass the same
+            // isolation scan the entry point already passed. A contribution the host cannot resolve
+            // is a broken plugin, not an empty extension point, so it is rejected rather than
+            // silently dropped.
+            var contributionFailure = FindContributionFailure(record.Key, module, collector);
+            if (contributionFailure is not null)
+            {
+                loadContext.Unload();
+                return PluginLoadResult.CreateFailure(contributionFailure);
+            }
 
             var runtime = new RegisteredPluginRuntime(
                 module.Manifest.ModuleId,
@@ -78,6 +130,7 @@ public sealed class PluginLoader
     private static IPluginModule? CreateModuleInstance(
         PluginAssemblyLoadContext loadContext,
         string extractionPath,
+        string pluginKey,
         string entryPoint,
         out string? error)
     {
@@ -110,6 +163,18 @@ public sealed class PluginLoader
                 return null;
             }
 
+            // CORE-16. The entry point is scanned before it is constructed: RegisterContributions
+            // runs inside the constructor's reach, so scanning afterwards would already have let
+            // plugin code execute. The module entry point keeps its parameterless constructor
+            // (see docs/plugin-contract.md) — this scan is the compensating control.
+            if (PluginIsolationScanner.TryFindViolation(entryPointType, out var entryPointViolation))
+            {
+                error = $"Plugin '{pluginKey}' wurde abgelehnt: Der Entry Point '{entryPoint}' greift direkt "
+                    + $"auf den Core-Namensraum zu ('{entryPointViolation}'). Plugins duerfen nur ueber "
+                    + "ClubGear.Plugin.Contracts mit dem Host sprechen.";
+                return null;
+            }
+
             if (Activator.CreateInstance(entryPointType) is not IPluginModule module)
             {
                 error = $"Entry Point '{entryPoint}' konnte nicht instanziiert werden.";
@@ -122,6 +187,95 @@ public sealed class PluginLoader
 
         error = $"Entry Point '{entryPoint}' wurde im Plugin-Paket nicht gefunden.";
         return null;
+    }
+
+    /// <summary>
+    /// CORE-16. Resolves every declared contribution type from the module's own assembly and runs
+    /// the isolation scan over it. Returns the rejection message, or <c>null</c> when all declared
+    /// types are present and clean.
+    /// </summary>
+    private static string? FindContributionFailure(
+        string pluginKey,
+        IPluginModule module,
+        PluginContributionCollector collector)
+    {
+        var moduleAssembly = module.GetType().Assembly;
+
+        foreach (var (kind, typeName) in EnumerateDeclaredContributionTypes(collector))
+        {
+            if (string.IsNullOrWhiteSpace(typeName))
+            {
+                return $"Plugin '{pluginKey}' deklariert {kind} ohne Typnamen.";
+            }
+
+            // Deliberately the module's own assembly only: a contribution type that resolves from
+            // somewhere else would leave the plugin boundary before it is even registered.
+            var contributionType = moduleAssembly.GetType(typeName, throwOnError: false, ignoreCase: false);
+            if (contributionType is null)
+            {
+                return $"Plugin '{pluginKey}' deklariert {kind} '{typeName}', der im Plugin-Assembly "
+                    + $"'{moduleAssembly.GetName().Name}' nicht gefunden wurde.";
+            }
+
+            if (!contributionType.IsVisible || contributionType.IsAbstract)
+            {
+                return $"Plugin '{pluginKey}' deklariert {kind} '{contributionType.FullName}', der nicht "
+                    + "oeffentlich und instanziierbar ist. Beitragstypen muessen public und nicht abstract sein.";
+            }
+
+            // CORE-18. Exactly one canonical public constructor T(IPluginHostContext). No
+            // parameterless fallback, no other arity. This is the shape whose removal moved
+            // ContractVersion.MinimumSupported to 1.13.0.
+            if (PluginContributionActivator.FindCanonicalConstructor(contributionType) is null)
+            {
+                return $"Plugin '{pluginKey}' wurde abgelehnt: {kind} '{contributionType.FullName}' hat keinen "
+                    + "oeffentlichen Konstruktor '(IPluginHostContext)'. Seit Contract 1.13.0 werden Beitraege "
+                    + "vom Host ueber genau diesen Konstruktor erzeugt.";
+            }
+
+            if (PluginIsolationScanner.TryFindViolation(contributionType, out var violation))
+            {
+                return $"Plugin '{pluginKey}' wurde abgelehnt: {kind} '{contributionType.FullName}' greift "
+                    + $"direkt auf den Core-Namensraum zu ('{violation}'). Plugins duerfen nur ueber "
+                    + "ClubGear.Plugin.Contracts mit dem Host sprechen.";
+            }
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<(string Kind, string TypeName)> EnumerateDeclaredContributionTypes(
+        PluginContributionCollector collector)
+    {
+        foreach (var contribution in collector.Services)
+        {
+            yield return ("den Service-Typ", contribution.ServiceType);
+        }
+
+        foreach (var contribution in collector.MemberProviders)
+        {
+            yield return ("den Member-Provider-Typ", contribution.ProviderType);
+        }
+
+        foreach (var contribution in collector.BackgroundJobs)
+        {
+            yield return ("den Hintergrundjob-Typ", contribution.JobType);
+        }
+
+        foreach (var contribution in collector.AuditSinks)
+        {
+            yield return ("den Audit-Sink-Typ", contribution.ProviderType);
+        }
+
+        foreach (var contribution in collector.IdentityProviders)
+        {
+            yield return ("den Identity-Provider-Typ", contribution.ProviderType);
+        }
+
+        foreach (var contribution in collector.SelfServiceProfileProviders)
+        {
+            yield return ("den Self-Service-Provider-Typ", contribution.ProviderType);
+        }
     }
 
     private sealed class PluginContributionCollector : IPluginContributionSink

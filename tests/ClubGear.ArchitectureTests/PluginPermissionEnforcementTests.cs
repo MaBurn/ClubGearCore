@@ -103,7 +103,7 @@ public sealed class PluginPermissionEnforcementTests
                 "Plugin Tests",
                 "Proprietary",
                 "Plugin.EntryPoint",
-                ">=1.0.0",
+                ">=1.13.0",
                 permissions,
                 Array.Empty<string>());
         }

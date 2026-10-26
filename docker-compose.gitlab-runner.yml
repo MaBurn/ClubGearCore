@@ -1,0 +1,69 @@
+name: clubgear-gitlab-runner
+
+services:
+  register:
+    image: gitlab/gitlab-runner:alpine-v18.11.2
+    restart: "no"
+    environment:
+      CI_SERVER_URL: ${CI_SERVER_URL:-http://gitlab}
+      GITLAB_RUNNER_TOKEN: ${GITLAB_RUNNER_TOKEN:-}
+      RUNNER_NAME: ${RUNNER_NAME:-clubgear-docker}
+    volumes:
+      - runner-config:/etc/gitlab-runner
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - npm_network
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        if [ -s /etc/gitlab-runner/config.toml ] && grep -q 'token = ' /etc/gitlab-runner/config.toml; then
+          sed -i 's/^concurrent = .*/concurrent = 2/' /etc/gitlab-runner/config.toml
+          if grep -q '^[[:space:]]*request_concurrency = ' /etc/gitlab-runner/config.toml; then
+            sed -i 's/^[[:space:]]*request_concurrency = .*/  request_concurrency = 2/' /etc/gitlab-runner/config.toml
+          else
+            sed -i '/^\[\[runners\]\]$/a\  request_concurrency = 2' /etc/gitlab-runner/config.toml
+          fi
+          echo "GitLab Runner is already registered."
+          exit 0
+        fi
+
+        if [ -z "$${GITLAB_RUNNER_TOKEN}" ]; then
+          echo "GITLAB_RUNNER_TOKEN is required for the initial deployment." >&2
+          exit 1
+        fi
+
+        gitlab-runner register \
+          --non-interactive \
+          --url "$${CI_SERVER_URL}" \
+          --token "$${GITLAB_RUNNER_TOKEN}" \
+          --executor docker \
+          --docker-image alpine:3.22 \
+          --description "$${RUNNER_NAME}" \
+          --docker-privileged \
+          --docker-network-mode npm_network \
+          --docker-volumes /cache
+
+        sed -i 's/^concurrent = .*/concurrent = 2/' /etc/gitlab-runner/config.toml
+        sed -i '/^\[\[runners\]\]$/a\  request_concurrency = 2' /etc/gitlab-runner/config.toml
+
+  runner:
+    image: gitlab/gitlab-runner:alpine-v18.11.2
+    restart: unless-stopped
+    environment:
+      FF_USE_ADAPTIVE_REQUEST_CONCURRENCY: "true"
+      FF_ENABLE_JOB_CLEANUP: "true"
+    depends_on:
+      register:
+        condition: service_completed_successfully
+    volumes:
+      - runner-config:/etc/gitlab-runner
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - npm_network
+
+volumes:
+  runner-config:
+
+networks:
+  npm_network:
+    external: true

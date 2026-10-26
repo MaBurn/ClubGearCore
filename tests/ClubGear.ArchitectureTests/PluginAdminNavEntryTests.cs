@@ -144,7 +144,7 @@ public sealed class PluginAdminNavEntryTests
             Array.Empty<PluginIdentityProviderContribution>(),
             Array.Empty<PluginSelfServiceProfileProviderContribution>());
 
-        registry.Register(runtime, module, AssemblyLoadContext.GetLoadContext(module.GetType().Assembly)!);
+        registry.RegisterAsync(runtime, module, AssemblyLoadContext.GetLoadContext(module.GetType().Assembly)!).GetAwaiter().GetResult();
     }
 
     private static async Task<Fixture> CreateFixtureAsync()

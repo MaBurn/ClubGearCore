@@ -222,6 +222,10 @@ public sealed class MembershipTypeSchemaTests
         await using var dbContext = new ApplicationDbContext(options);
         await AddMembershipTypeModel_202607070101.ApplyAsync(dbContext);
 
+        // ApplicationSeeder runs every idempotent migration in order, so a legacy DB also gains
+        // the member email-invalid columns before EF inserts a Member.
+        await AddMemberEmailInvalidState_202607240101.ApplyAsync(dbContext);
+
         var standardTypeId = (await GetMembershipTypeIdsByKeyAsync(connection))["Standard"];
 
         dbContext.Members.Add(new Member
@@ -344,7 +348,118 @@ public sealed class MembershipTypeSchemaTests
         Assert.Equal((true, "Angestellte"), config["Firma"]);
     }
 
+    // ── Slice 1 (membership fees) DoD: EnsureCreated's schema for a brand-new DB includes
+    //    both new MembershipTypes fee columns, matching the idempotent migration. ─────────
+
+    [Fact]
+    public async Task EnsureCreatedAsync_OnNewDatabase_MembershipTypesHasFeeAndBillingIntervalColumns()
+    {
+        await using var connection = new SqliteConnection("Filename=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var dbContext = new ApplicationDbContext(options);
+        await dbContext.Database.EnsureCreatedAsync();
+
+        var columns = await GetTableColumnsAsync(connection, "MembershipTypes");
+        Assert.Contains("FeeAmount", columns);
+        Assert.Contains("BillingInterval", columns);
+    }
+
+    // ── Slice 1 (membership fees) DoD: the AddMembershipTypeFee migration adds the two
+    //    fee columns idempotently against a pre-feature DB and leaves pre-existing
+    //    (null-fee) types valid. ───────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task AddMembershipTypeFee_AddsColumnsIdempotently_AndPreExistingTypesRemainValid()
+    {
+        await using var connection = new SqliteConnection("Filename=:memory:");
+        await connection.OpenAsync();
+
+        // Pre-feature MembershipTypes shape: no FeeAmount / BillingInterval columns yet.
+        await using (var cmd = connection.CreateCommand())
+        {
+            cmd.CommandText =
+                @"CREATE TABLE MembershipTypes (
+                    Id INTEGER NOT NULL CONSTRAINT PK_MembershipTypes PRIMARY KEY AUTOINCREMENT,
+                    Key TEXT NOT NULL,
+                    Name TEXT NOT NULL,
+                    Description TEXT NULL,
+                    DefaultDiscountPercent INTEGER NULL,
+                    IsSystemDefined INTEGER NOT NULL DEFAULT 0,
+                    SortOrder INTEGER NOT NULL DEFAULT 0,
+                    IsActive INTEGER NOT NULL DEFAULT 1,
+                    CreatedAtUtc TEXT NOT NULL DEFAULT '1970-01-01T00:00:00Z',
+                    UpdatedAtUtc TEXT NOT NULL DEFAULT '1970-01-01T00:00:00Z'
+                );";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        await using (var cmd = connection.CreateCommand())
+        {
+            cmd.CommandText = "INSERT INTO MembershipTypes (Key, Name) VALUES ('Standard', 'Standard');";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var dbContext = new ApplicationDbContext(options);
+
+        // First run adds the two columns.
+        await AddMembershipTypeFee_202607150101.ApplyAsync(dbContext);
+
+        var columnsAfterFirstRun = await GetTableColumnsAsync(connection, "MembershipTypes");
+        Assert.Contains("FeeAmount", columnsAfterFirstRun);
+        Assert.Contains("BillingInterval", columnsAfterFirstRun);
+
+        // Pre-existing type stays valid with NULL fee/interval.
+        var (fee, interval) = await GetFeeConfigAsync(connection, "Standard");
+        Assert.Null(fee);
+        Assert.Null(interval);
+
+        // Second run is a no-op (idempotent): must not throw and must not duplicate columns.
+        await AddMembershipTypeFee_202607150101.ApplyAsync(dbContext);
+
+        var columnsAfterSecondRun = await GetTableColumnsAsync(connection, "MembershipTypes");
+        Assert.Contains("FeeAmount", columnsAfterSecondRun);
+        Assert.Contains("BillingInterval", columnsAfterSecondRun);
+        Assert.Equal(columnsAfterFirstRun.Count, columnsAfterSecondRun.Count);
+
+        // A fee/interval written after the migration reads back intact.
+        await using (var cmd = connection.CreateCommand())
+        {
+            cmd.CommandText = "UPDATE MembershipTypes SET FeeAmount = '120.00', BillingInterval = 'Yearly' WHERE Key = 'Standard';";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var (updatedFee, updatedInterval) = await GetFeeConfigAsync(connection, "Standard");
+        Assert.Equal("120.00", updatedFee);
+        Assert.Equal("Yearly", updatedInterval);
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────
+
+    private static async Task<(string? Fee, string? Interval)> GetFeeConfigAsync(SqliteConnection connection, string key)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT FeeAmount, BillingInterval FROM MembershipTypes WHERE Key = $key;";
+        command.Parameters.AddWithValue("$key", key);
+
+        await using var reader = await command.ExecuteReaderAsync();
+        if (!await reader.ReadAsync())
+        {
+            return (null, null);
+        }
+
+        var fee = reader.IsDBNull(0) ? null : reader.GetString(0);
+        var interval = reader.IsDBNull(1) ? null : reader.GetString(1);
+        return (fee, interval);
+    }
 
     private static async Task<Dictionary<string, (bool AllowsSubMembers, string? Label)>> GetSubMemberConfigByKeyAsync(SqliteConnection connection)
     {

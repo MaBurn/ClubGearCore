@@ -2,7 +2,7 @@
 
 Audience: Entwickler, Plugin-Autoren, Architekten, Compliance-Verantwortliche
 Scope: Plugin-Vertrag, erlaubte Schnittstellen, verbotene Kernzugriffe, Lizenzgrenzen
-Last-Validated: 2026-06-07
+Last-Validated: 2026-08-05
 Source-Commit: ae195e7
 Related-Diagrams: diagrams/img/ctr-plugin-boundary.png
 
@@ -30,6 +30,7 @@ Plugins duerfen nur ueber Contracts und Facades mit dem Core interagieren.
 | Route per `PluginEndpointRegistrar.RegisterGet()` registrieren | Ja | Nur mit isoliertem Handler |
 | Member-Slots und Actions registrieren | Ja | Rendering bleibt im Host, Inhalt kommt aus Plugin-Contributions |
 | Admin-Function-Panels registrieren | Ja | Host stellt generische Panel- und Command-UI bereit |
+| OIDC-Provider-Metadaten und Claim-Mapping registrieren | Ja | Core behaelt Authentication Handler und lokale Sessionhoheit |
 
 ### Verbotene Pfade
 
@@ -114,5 +115,6 @@ aktuell implementierten Runtime- und Installationsregeln.
 - [Core Deep-Dive](core-deep-dive.md)
 - [UI Flow Map](ui-flow-map.md)
 - [Plugin Authoring Guide](plugin-authoring-guide.md)
+- [Identity-Provider-Plugins (OpenID Connect)](identity-provider-plugins.md)
 - [Diagrammquelle Plugin Boundary](diagrams/src/ctr-plugin-boundary.puml)
 - [Vorherige Lizenzgrenze](plugin-license-boundary.md)

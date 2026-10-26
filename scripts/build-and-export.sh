@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TAG="${1:-test}"
+source "$(dirname "${BASH_SOURCE[0]}")/version.sh"
+
+TAG="${1:-$(clubgear_version)}"
 ENGINE="${2:-auto}"
 OUTPUT="clubgear-${TAG}.tar.gz"
 GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"

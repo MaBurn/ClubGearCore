@@ -169,7 +169,7 @@ public sealed class PluginDependencyPersistenceTests
             pluginVersion: new Version(1, 0, 0),
             dependencies: ["clubgear.plugin.carinfo@>=1.0.5"],
             rsa,
-            requiredCoreVersion: ">=1.8.0");
+            requiredCoreVersion: ">=1.13.0");
 
         var result = await sut.InstallOrUpgradeFromZipAsync(
             "dep-test-1.0.0.zip",
@@ -208,7 +208,7 @@ public sealed class PluginDependencyPersistenceTests
         Version pluginVersion,
         string[] dependencies,
         RSA rsa,
-        string requiredCoreVersion = ">=1.8.0")
+        string requiredCoreVersion = ">=1.13.0")
     {
         var depsJson = JsonSerializer.Serialize(dependencies);
         var manifest =

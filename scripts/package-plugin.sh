@@ -58,6 +58,14 @@ if [[ ! -f "$private_key" && -f "$legacy_private_key" ]]; then
 fi
 
 if [[ ! -f "$private_key" ]]; then
+  # Minting a key here rewrites dist/signer-public.pem, so every installation that
+  # pinned the previous key would reject the next package. That is acceptable when a
+  # human is bootstrapping a new plugin, never when automation runs unattended.
+  if [[ -n "${CI:-}" ]]; then
+    echo "Kein Signaturschlüssel unter $private_key." >&2
+    echo "In CI wird bewusst kein neuer erzeugt: das würde $public_key überschreiben." >&2
+    exit 1
+  fi
   openssl genpkey \
     -algorithm RSA \
     -out "$private_key" \

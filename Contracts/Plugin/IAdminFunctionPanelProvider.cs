@@ -52,4 +52,15 @@ public sealed record PluginCommandResult(
     bool Success,
     string Status,
     string? Message = null,
-    IReadOnlyList<PluginFieldError>? FieldErrors = null);
+    IReadOnlyList<PluginFieldError>? FieldErrors = null,
+    PluginCommandFile? File = null);
+
+/// <summary>
+/// Optional downloadable file payload carried by a <see cref="PluginCommandResult"/>.
+/// The host surfaces this over the command API JSON so the browser can decode
+/// <see cref="ContentBase64"/> into a Blob and trigger a download.
+/// </summary>
+public sealed record PluginCommandFile(
+    string FileName,
+    string ContentType,
+    string ContentBase64);

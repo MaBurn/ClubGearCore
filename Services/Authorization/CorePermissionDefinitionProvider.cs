@@ -21,6 +21,7 @@ public class CorePermissionDefinitionProvider : IPermissionDefinitionProvider
         yield return new PermissionDefinition(PermissionKeys.MembersTypesManage, "Mitgliedsarten und Metadatendefinitionen verwalten", "Members");
         yield return new PermissionDefinition(PermissionKeys.SelfServiceAccess, "Selfservice aufrufen", "SelfService");
         yield return new PermissionDefinition(PermissionKeys.SelfServiceProfileEdit, "Selfservice-Profil bearbeiten", "SelfService");
+        yield return new PermissionDefinition(PermissionKeys.ApiKeysManage, "API-Keys und Servicekonten verwalten", "Administration");
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var pluginDefinitions = new List<PermissionDefinition>();

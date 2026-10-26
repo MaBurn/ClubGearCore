@@ -33,6 +33,20 @@ public class Member
     [StringLength(255)]
     public string? Email { get; set; }
 
+    /// <summary>
+    /// True when <see cref="Email"/> was proven undeliverable (e.g. a bounce/DSN named it as a
+    /// failed recipient). Automated email to this member is suppressed while the flag is set;
+    /// it clears automatically as soon as the address is changed.
+    /// </summary>
+    public bool EmailInvalid { get; set; }
+
+    /// <summary>UTC timestamp at which <see cref="EmailInvalid"/> was set.</summary>
+    public DateTime? EmailInvalidatedAtUtc { get; set; }
+
+    /// <summary>Diagnostic text explaining why the address was flagged (e.g. the DSN diagnostic code).</summary>
+    [StringLength(1000)]
+    public string? EmailInvalidReason { get; set; }
+
     [Phone]
     [StringLength(50)]
     public string? PhoneNumber { get; set; }

@@ -3,6 +3,7 @@ using ClubGear.Middleware;
 using ClubGear.Models;
 using ClubGear.Services;
 using ClubGear.Services.Abstractions;
+using ClubGear.Services.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -37,7 +38,11 @@ builder.Services
         // OidcOptionsReloader overwrites this at request time from SystemConfigEntry.
         options.ClientId = "unconfigured";
         options.Authority = "https://unconfigured.invalid";
-    });
+    })
+    // CORE-09. An additional, non-default scheme: browser requests keep authenticating through
+    // the Identity cookie, and only a request presenting an API key header uses this one.
+    .AddScheme<ApiKeyAuthenticationOptions, ApiKeyAuthenticationHandler>(
+        ApiKeyAuthenticationOptions.DefaultScheme, _ => { });
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -54,6 +59,9 @@ using (var scope = app.Services.CreateScope())
 
     var pluginLifecycleService = scope.ServiceProvider.GetRequiredService<IPluginLifecycleService>();
     await pluginLifecycleService.LoadActivatedAsync();
+
+    var externalLoginService = scope.ServiceProvider.GetRequiredService<IExternalLoginService>();
+    await externalLoginService.RegisterDeclaredSchemesAsync();
 }
 
 // Configure the HTTP request pipeline.

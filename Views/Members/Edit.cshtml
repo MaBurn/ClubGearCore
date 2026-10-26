@@ -17,7 +17,8 @@
     ViewData["Title"] = "Mitglied bearbeiten";
     ViewData["MemberHeaderMode"] = "edit";
     ViewData["PluginSlotMode"] = "edit-cards";
-    ViewData["PluginActionsVisible"] = true;
+    ViewData["PluginActionsVisible"] = false;
+    ViewData["PluginActionMemberId"] = Model.Id;
     var pluginSlots = ViewData["MemberPluginSlots"] as MemberPluginSlotSnapshot ?? MemberPluginSlotSnapshot.Empty;
     var membershipTypes = (ViewData["MembershipTypes"] as IReadOnlyList<ClubGear.Models.MembershipType>) ?? new List<ClubGear.Models.MembershipType>();
     var membershipTypeKey = Model.MembershipType?.Key;
@@ -109,10 +110,6 @@
                     </div>
                 </div>
             </div>
-        </div>
-
-        <div class="mb-3">
-            <partial name="_HeaderActions" model="Model" />
         </div>
 
         <div class="d-md-none mb-3">
@@ -209,9 +206,18 @@
                         <h5 class="card-title mb-3"><i class="bi bi-envelope-at-fill text-primary me-1"></i>Kontaktkanal</h5>
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label asp-for="Email" class="form-label">E-Mail</label>
+                                <label asp-for="Email" class="form-label">
+                                    E-Mail@Html.Raw(ClubGear.Services.Core.MemberEmailBadge.Html(Model))
+                                </label>
                                 <input asp-for="Email" class="form-control" type="email" />
                                 <span asp-validation-for="Email" class="text-danger"></span>
+                                @if (Model.EmailInvalid)
+                                {
+                                    <div class="form-text text-muted member-email-invalid-info">
+                                        @ClubGear.Services.Core.MemberEmailBadge.DescribeInvalidState(Model)
+                                        <br />Die Markierung wird automatisch entfernt, sobald eine andere Adresse gespeichert wird.
+                                    </div>
+                                }
                             </div>
                             <div class="col-md-6">
                                 <label asp-for="PhoneNumber" class="form-label">Telefon</label>
@@ -373,18 +379,7 @@
                 <div class="card shadow-sm mb-3">
                     <div class="card-body">
                         <h5 class="card-title mb-3"><i class="bi bi-cpu text-primary me-1"></i>Erweiterte Module</h5>
-                        <div class="alert alert-info mb-3">
-                            Diese ClubGear-Instanz bildet das Originallayout bereits aehnlich nach, aber einige Original-Module sind hier noch nicht implementiert.
-                        </div>
                         <partial name="_PluginSlots" model="pluginSlots" />
-                        <div class="row g-2 small">
-                            <div class="col-md-6"><span class="badge bg-light text-dark">Nicht verfuegbar:</span> Zahlungen</div>
-                            <div class="col-md-6"><span class="badge bg-light text-dark">Nicht verfuegbar:</span> Bankkonten</div>
-                            <div class="col-md-6"><span class="badge bg-light text-dark">Nicht verfuegbar:</span> GPS-Tracker</div>
-                            <div class="col-md-6"><span class="badge bg-light text-dark">Nicht verfuegbar:</span> Keycloak-Gruppen</div>
-                            <div class="col-md-6"><span class="badge bg-light text-dark">Nicht verfuegbar:</span> Newsletter-Zuordnung</div>
-                            <div class="col-md-6"><span class="badge bg-light text-dark">Nicht verfuegbar:</span> Kommunikationsprodukte</div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -401,6 +396,8 @@
         </div>
     </form>
 </div>
+
+<partial name="_PluginActionModal" model="pluginSlots" />
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />

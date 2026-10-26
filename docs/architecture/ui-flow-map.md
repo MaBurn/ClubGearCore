@@ -2,7 +2,7 @@
 
 Audience: Entwickler, UI-Verantwortliche, QA
 Scope: End-to-End-UI-Flows, Route/Controller-Mapping, View-Integration
-Last-Validated: 2026-06-07
+Last-Validated: 2026-08-05
 Source-Commit: ae195e7
 Related-Diagrams: diagrams/img/seq-ui-core-interaction.png
 
@@ -55,6 +55,8 @@ Pfaden vom Benutzerereignis bis zum Core-Service.
 | Login ausfuehren | `POST /Account/Login` | `AccountController.Login` | `Views/Account/Login.cshtml` | `LoginAsync()` |
 | Registrierung | `GET/POST /Account/Register` | `AccountController.Register` | `Views/Account/Register.cshtml` | `RegisterAsync()` |
 | Logout | `POST /Account/Logout` | `AccountController.Logout` | keine eigene View | `LogoutAsync()` |
+| Externen OIDC-Login starten | `GET /Account/ExternalLoginChallenge?provider={key}` | `AccountController.ExternalLoginChallenge` | Redirect zum IdP | `IExternalLoginService.BuildChallengeAsync()` |
+| OIDC-Callback abschliessen | `GET /Account/ExternalLoginCallback` | `AccountController.ExternalLoginCallback` | Redirect oder `Views/Account/ExternalLoginCallback.cshtml` | `IExternalLoginService.HandleCallbackAsync()` |
 
 ### Plugin-/Admin-Fluesse
 
@@ -68,6 +70,10 @@ Pfaden vom Benutzerereignis bis zum Core-Service.
 | Plugin-ZIP installieren | `POST /api/plugins/install/zip` | `PluginsController.InstallFromZip` | JSON |
 | Plugin aktivieren | `POST /api/plugins/{moduleId}/activate` | `PluginsController.Activate` | JSON |
 | Plugin deaktivieren | `POST /api/plugins/{moduleId}/deactivate` | `PluginsController.Deactivate` | JSON |
+| OIDC-Provider auflisten | `GET /Admin/ExternalLogin` | `ExternalLoginAdminController.Index` | MVC |
+| OIDC-Provider konfigurieren | `GET/POST /Admin/ExternalLogin/Configure?provider={key}` | `ExternalLoginAdminController.Configure` | MVC |
+| OIDC-Verbindung testen | `POST /Admin/ExternalLogin/Test?provider={key}` | `ExternalLoginAdminController.Test` | JSON |
+| OIDC-Provider aktivieren | `POST /Admin/ExternalLogin/Activate?provider={key}` | `ExternalLoginAdminController.Activate` | Redirect |
 | Plugin-Route aufrufen (root) | `GET /api/plugin-runtime/{moduleId}` | `PluginRuntimeController.InvokeRootRoute` | HTTP Content |
 | Plugin-Route aufrufen (Pfad) | `GET /api/plugin-runtime/{moduleId}/{**routePath}` | `PluginRuntimeController.InvokeRoute` | HTTP Content |
 | Test-Notification senden | `POST /api/notifications/send-test` | `NotificationsController.SendTest` | JSON |
@@ -100,4 +106,5 @@ transportiert, damit dieselbe Meldung nach Redirects und bei Inline-Fehlern sich
 - [Runtime & Deployment](runtime-deployment.md)
 - [Plugin Boundary & Compliance](plugin-boundary-and-compliance.md)
 - [Plugin Authoring Guide](plugin-authoring-guide.md)
+- [Identity-Provider-Plugins (OpenID Connect)](identity-provider-plugins.md)
 - [Diagrammquelle UI/Core](diagrams/src/seq-ui-core-interaction.puml)

@@ -11,7 +11,7 @@ namespace ClubGear.ArchitectureTests;
 ///   2.1 DeleteCarByIdAsync compiles and performs ownership check
 ///   2.2 carinfo.delete slot uses carId + clubgear.plugin.carinfo.member.write
 ///   2.3 ExecuteAsync routes carinfo.delete to DeleteCarByIdAsync
-///   2.4 CarInfoEditTabProvider emits [Id] prefix on each car line
+///   2.4 CarInfoEditTabProvider emits one interactive card per car
 /// </summary>
 public sealed class CarInfoSlice2Tests
 {
@@ -167,9 +167,9 @@ public sealed class CarInfoSlice2Tests
         Assert.Equal("invalid", result.Status);
     }
 
-    // 2.4 — CarInfoEditTabProvider emits [Id] prefix on each car line
+    // 2.4 — CarInfoEditTabProvider emits one card with stable vehicle id per car
     [Fact]
-    public async Task GetTabsAsync_CarLines_IncludeIdPrefix()
+    public async Task GetTabsAsync_CarCards_IncludeVehicleId()
     {
         await using var fixture = await CreateFixtureAsync();
         var editTabProvider = new CarInfoEditTabProvider();
@@ -204,13 +204,14 @@ public sealed class CarInfoSlice2Tests
         foreach (var row in carRows)
         {
             var id = row.Values.GetValueOrDefault("Id")!;
-            Assert.Contains($"[{id}]", text);
+            Assert.Contains($"data-carinfo-vehicle-id=\"{id}\"", text);
+            Assert.Contains($"&quot;carId&quot;:&quot;{id}&quot;", text);
         }
     }
 
-    // 2.4 — the [Id] prefix appears before the license plate on the same car line
+    // 2.4 — the vehicle id is attached to the same card as the license plate
     [Fact]
-    public async Task GetTabsAsync_CarLine_HasIdBeforeLicensePlate()
+    public async Task GetTabsAsync_CarCard_HasIdBeforeLicensePlate()
     {
         await using var fixture = await CreateFixtureAsync();
         var editTabProvider = new CarInfoEditTabProvider();
@@ -233,11 +234,11 @@ public sealed class CarInfoSlice2Tests
         var tabs = await editTabProvider.GetTabsAsync(member, fixture.Host);
         var text = Assert.Single(tabs).Content;
 
-        var idIndex = text.IndexOf($"[{carId}]", StringComparison.Ordinal);
+        var idIndex = text.IndexOf($"data-carinfo-vehicle-id=\"{carId}\"", StringComparison.Ordinal);
         var plateIndex = text.IndexOf("B-AB 123", StringComparison.Ordinal);
 
-        Assert.True(idIndex >= 0, $"[{carId}] not found in tab body");
-        Assert.True(plateIndex > idIndex, $"LicensePlate should appear after [{carId}]");
+        Assert.True(idIndex >= 0, $"vehicle id {carId} not found in tab body");
+        Assert.True(plateIndex > idIndex, $"LicensePlate should appear after vehicle id {carId}");
     }
 
     [Fact]
@@ -259,12 +260,12 @@ public sealed class CarInfoSlice2Tests
 
         Assert.Equal("fahrzeuge", tab.GroupKey);
         Assert.Equal("Fahrzeuge", tab.GroupTitle);
+        Assert.Contains("data-carinfo-vehicle-card", tab.Content, StringComparison.Ordinal);
         Assert.Contains("data-plugin-member-action", tab.Content, StringComparison.Ordinal);
-        Assert.Contains("data-plugin-action-key=\"carinfo.add\"", tab.Content, StringComparison.Ordinal);
         Assert.Contains("data-plugin-action-key=\"carinfo.update\"", tab.Content, StringComparison.Ordinal);
         Assert.Contains("data-plugin-action-key=\"carinfo.delete\"", tab.Content, StringComparison.Ordinal);
+        Assert.Contains("data-plugin-action-arguments", tab.Content, StringComparison.Ordinal);
         Assert.Contains("Bearbeiten", tab.Content, StringComparison.Ordinal);
-        Assert.Contains("Fahrzeug hinzuf", tab.Content, StringComparison.Ordinal);
         Assert.Contains("schen", tab.Content, StringComparison.Ordinal);
         Assert.DoesNotContain("Hinweis: Fuer Write-Operationen", tab.Content, StringComparison.Ordinal);
     }

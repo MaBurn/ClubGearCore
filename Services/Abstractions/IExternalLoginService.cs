@@ -8,15 +8,25 @@ namespace ClubGear.Services.Abstractions;
 public interface IExternalLoginService
 {
     /// <summary>
+    /// Ensures that every currently declared, enabled, available, and validly configured
+    /// provider has a named OIDC authentication scheme. Called during startup after
+    /// activated plugins are loaded.
+    /// </summary>
+    Task RegisterDeclaredSchemesAsync(CancellationToken ct = default)
+        => Task.CompletedTask;
+
+    /// <summary>
     /// Returns every identity provider that is currently declared by a loaded plugin
-    /// AND has the <c>enabled</c> config flag set to <c>true</c>.
+    /// AND has the <c>enabled</c> config flag set to <c>true</c>, with a complete and
+    /// valid OIDC configuration.
     /// </summary>
     Task<IReadOnlyList<ExternalProviderInfo>> GetActiveProvidersAsync(
         CancellationToken ct = default);
 
     /// <summary>
     /// Validates that the provider referenced by <paramref name="providerKey"/> is
-    /// configured (authority, clientId, clientSecret are all present) and returns an
+    /// enabled, configured (authority, clientId, clientSecret are present and valid), ensures
+    /// its provider-specific OIDC scheme is registered, and returns an
     /// <see cref="AuthenticationProperties"/> instance that should be passed to a
     /// <see cref="Microsoft.AspNetCore.Mvc.ChallengeResult"/>.
     /// Returns <c>null</c> when the provider is unknown or config is incomplete.
@@ -29,7 +39,8 @@ public interface IExternalLoginService
     /// <summary>
     /// Processes the OIDC callback: retrieves the external login info, enriches claims
     /// via <see cref="IIdpClaimsEnricher"/>, looks up the linked <c>Member</c> by the
-    /// subject claim stored in <c>Member.OauthID</c>, and returns an outcome record.
+    /// subject claim stored in <c>Member.OauthID</c>, signs in its linked application
+    /// user, and returns an outcome record.
     /// </summary>
     Task<ExternalLoginOutcome> HandleCallbackAsync(
         CancellationToken ct = default);

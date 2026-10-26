@@ -2,7 +2,7 @@
 
 Audience: Plugin-Autoren, Integrationsentwickler, Reviewer
 Scope: Wie Plugins fuer ClubGear erstellt, paketiert, signiert, installiert und aufgerufen werden
-Last-Validated: 2026-06-18
+Last-Validated: 2026-10-04
 
 ## Purpose
 
@@ -22,7 +22,7 @@ Wichtig:
 
 ## 2. Minimales Plugin-Projekt
 
-Beispiel `Sample.MemberPlugin.csproj`:
+Beispiel `plugins/Sample.MemberPlugin/Sample.MemberPlugin.csproj`:
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
@@ -33,7 +33,7 @@ Beispiel `Sample.MemberPlugin.csproj`:
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Contracts/Plugin/ClubGear.Plugin.Contracts.csproj" />
+    <ProjectReference Include="../../Contracts/Plugin/ClubGear.Plugin.Contracts.csproj" />
   </ItemGroup>
 </Project>
 ```
@@ -56,7 +56,7 @@ public sealed class SampleMemberPluginModule : IPluginModule
         Author: "Sample Team",
         License: "Proprietary",
         EntryPoint: typeof(SampleMemberPluginModule).FullName!,
-        RequiredCoreVersion: ">=1.0.0",
+        RequiredCoreVersion: ">=1.10.0",
         Permissions: new[] { "members.read" },
         ExtensionPoints: new[] { "member.detail", "runtime.route" });
 
@@ -106,7 +106,7 @@ Beispiel:
   "key": "sample.member.plugin",
   "name": "Sample Member Plugin",
   "version": "1.0.0",
-  "requiredCoreVersion": ">=1.0.0",
+  "requiredCoreVersion": ">=1.10.0",
   "entryPoint": "Sample.MemberPlugin.SampleMemberPluginModule",
   "author": "Sample Team",
   "license": "Proprietary",
@@ -130,13 +130,12 @@ Values are validated at install time; unrecognized values cause the manifest to 
 | `"admin.functions"`      | technical       | `IAdminFunctionPanelProvider`            | `AdminFunctions`                 |
 | `"runtime.route"`        | technical       | `IPluginContributionSink.AddRoute`       | `RuntimeRoute`                   |
 | `"audit.sink"`           | technical       | `IAuditSinkProvider`                     | `AuditSink`                      |
-| `"background.job"`       | technical       | `IPluginBackgroundJob`                   | `BackgroundJob`                  |
 | `"identity.provider"`    | technical       | `IIdentityProviderPlugin`                | `IdentityProvider`               |
 
 Notes:
 - `extensionPoints` values are validated at install time; unrecognized values cause the manifest to be rejected.
 - `selfservice.profile` is reserved for a future self-service UI slot; it may be declared to signal intent but has no runtime effect yet.
-- `audit.sink`, `background.job` und `identity.provider` sind `generic-core`-Beitraege fuer `technical` Plugins. Aenderungen an diesen Contribution-Typen unterliegen dem ADR 0001 Guardrail GR-002.
+- `audit.sink` und `identity.provider` sind `generic-core`-Beitraege fuer `technical` Plugins. Aenderungen an diesen Contribution-Typen unterliegen dem ADR 0001 Guardrail GR-002.
 
 ## 4b. Member-Edit-Tab-Gruppen (`GroupKey` / `GroupTitle`)
 
@@ -177,7 +176,7 @@ Ein Audit-Sink empfaengt jeden Audit-Log-Eintrag, den der Core schreibt, und kan
 ```csharp
 public sealed class MySinkProvider : IAuditSinkProvider
 {
-    public Task HandleAuditEventAsync(PluginAuditEvent evt, CancellationToken ct)
+    public Task OnAuditEventAsync(PluginAuditEvent evt, CancellationToken ct = default)
     {
         // evt.Action, evt.Actor, evt.Before, evt.After, evt.OccurredAtUtc
         return Task.CompletedTask;
@@ -189,15 +188,15 @@ Registrierung in `RegisterContributions`:
 
 ```csharp
 sink.AddAuditSink(new PluginAuditSinkContribution(
-    Key: "my.audit.sink",
-    SinkType: typeof(MySinkProvider).FullName!));
+    ProviderType: typeof(MySinkProvider).FullName!,
+    Order: 10));
 ```
 
 `plugin.json` Extension-Point: `"audit.sink"`
 
 ---
 
-### Background-Job (`background.job`, `ContractVersion` >= 1.6.0)
+### Background-Job (Contribution API ohne Manifest-Extension-Point)
 
 Background-Jobs werden vom Host beim Plugin-Aktivieren gestartet und beim Deaktivieren sauber gestoppt (5-Sekunden-Drain). Jeder Job laeuft in einem eigenen `IServiceScope` und erhaelt einen `CancellationToken`.
 
@@ -225,27 +224,70 @@ sink.AddBackgroundJob(new PluginBackgroundJobContribution(
 
 Laufzeitstatus (State, LastRunUtc, LastError) ist in der Plugin-Admin-Detailansicht sichtbar (`/PluginAdmin/Detail/{key}`).
 
-`plugin.json` Extension-Point: `"background.job"`
+Fuer Background-Jobs existiert aktuell kein Eintrag in `PluginExtensionPoints`. Deshalb darf
+`background.job` **nicht** in `plugin.json.extensionPoints` stehen; der Manifest-Parser wuerde das
+Paket sonst ablehnen. Die Runtime-Contribution wird ausschliesslich ueber
+`AddBackgroundJob(...)` registriert.
 
 ---
 
-### Identity Provider (`identity.provider`, `ContractVersion` >= 1.7.0)
+### Identity Provider (`identity.provider`, aktueller Contract `1.10.0`)
 
-Ein Identity-Provider-Plugin liefert Claims-Mapping-Logik fuer den konfigurierten externen OIDC-Provider. Der Host ruft `MapClaimsAsync` nach erfolgreichem OIDC-Callback auf und reichert den Login-Kontext mit plugin-eigenen Claims an.
+Ein Identity-Provider-Plugin beschreibt einen externen OpenID-Connect-Provider, prueft dessen
+Konfiguration und mappt Claims. Der Core besitzt den OIDC-Handler und erzeugt nach erfolgreicher
+Verknuepfung die lokale Application-Session. Reines OAuth 2.0 ohne OIDC, SAML und LDAP werden von
+diesem Extension Point nicht unterstuetzt.
 
 ```csharp
 public sealed class MyIdpPlugin : IIdentityProviderPlugin
 {
+    public const string Key = "my-oidc";
+
+    public string ProviderKey => Key;
+    public string DisplayName => "My OIDC Provider";
+
+    public IReadOnlyList<PluginFieldSchema> GetConfigSchema() =>
+    [
+        new("authority", "Authority", Required: true, Order: 10),
+        new("clientid", "Client ID", Required: true, Order: 20),
+        new("clientsecret", "Client Secret", PluginSchemaFieldType.Secret,
+            Required: true, Order: 30)
+    ];
+
+    public Task<PluginExternalLoginTestResult> TestConnectionAsync(
+        IReadOnlyDictionary<string, string> config,
+        CancellationToken ct = default)
+    {
+        string[] required = ["authority", "clientid", "clientsecret"];
+        var complete = required.All(key =>
+            config.TryGetValue(key, out var value)
+            && !string.IsNullOrWhiteSpace(value));
+
+        return Task.FromResult(new PluginExternalLoginTestResult(
+            false,
+            complete
+                ? "Kurzbeispiel: OIDC-Discovery-Test noch nicht implementiert."
+                : "Pflichtwerte fehlen."));
+    }
+
     public Task<IReadOnlyList<PluginClaimEntry>> MapClaimsAsync(
         PluginExternalLoginContext ctx,
-        CancellationToken ct)
+        CancellationToken ct = default)
     {
-        // ctx.Subject, ctx.ProviderClaims, ctx.ProviderKey
-        var claims = new List<PluginClaimEntry>
-        {
-            new("custom.role", ctx.ProviderClaims["groups"])
-        };
-        return Task.FromResult<IReadOnlyList<PluginClaimEntry>>(claims);
+        // Verfuegbar: ctx.ProviderKey, ctx.Subject, ctx.RawClaims, ctx.Config.
+        var issuer = ctx.RawClaims.TryGetValue("iss", out var rawIssuer)
+            && !rawIssuer.TrimStart().StartsWith("[", StringComparison.Ordinal)
+                ? rawIssuer
+                : ctx.Config.TryGetValue("authority", out var authority)
+                    ? authority
+                    : throw new InvalidOperationException("OIDC issuer is missing.");
+        var material = $"{ctx.ProviderKey}\n{issuer}\n{ctx.Subject}";
+        var digest = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(material)))
+            .ToLowerInvariant();
+        return Task.FromResult<IReadOnlyList<PluginClaimEntry>>(
+            [new PluginClaimEntry("sub", $"oidc:{digest}")]);
     }
 }
 ```
@@ -254,12 +296,31 @@ Registrierung:
 
 ```csharp
 sink.AddIdentityProvider(new PluginIdentityProviderContribution(
-    Key: "my.idp",
-    PluginType: typeof(MyIdpPlugin).FullName!,
-    ProviderKey: "oidc.generic"));
+    ProviderKey: MyIdpPlugin.Key,
+    ProviderType: typeof(MyIdpPlugin).FullName!));
 ```
 
-Die OIDC-Provider-Konfiguration (Authority, Client-ID, Client-Secret) erfolgt ueber den Admin-Bereich unter `/Admin/ExternalLogin`, nicht ueber den Plugin-Code. Secrets werden in `SystemConfigEntry` gespeichert (aktuell Klartext — Verschluesselung ist geplant).
+Provider- und Modulklasse muessen public, konkret, parameterlos konstruierbar und in derselben
+Plugin-Assembly enthalten sein. Der Provider-Key traegt kein `oidc.`-Praefix. Contribution-Key und
+`IIdentityProviderPlugin.ProviderKey` muessen identisch und ueber alle installierten Plugins
+eindeutig sein.
+
+Die OIDC-Provider-Konfiguration erfolgt unter `/Admin/ExternalLogin`. Der Core wertet exakt die
+Schema-Keys `authority`, `clientid` und `clientsecret` aus; `enabled` verwaltet der Core separat.
+Secrets liegen aktuell im Klartext in `SystemConfigEntry`. Beim IdP wird als Redirect URI
+`https://<host>/signin-oidc-<providerKey>` registriert.
+
+Das kurze `TestConnectionAsync` oben ist absichtlich ein fail-closed Signaturbeispiel und meldet
+keinen Scheinerfolg. Fuer ein funktionsfaehiges Plugin muss es durch den Discovery-Test der
+Detailanleitung ersetzt werden. Ebenso muss produktives Claim-Mapping Mehrfachwerte validieren;
+das vollstaendige Beispiel liest `iss` und E-Mail als eindeutige Einzelwerte und faellt fuer einen
+fehlenden Issuer auf die konfigurierte Authority zurueck.
+
+Die vollstaendige, gegen den aktuellen Code validierte Anleitung inklusive Manifest,
+Kontoverknuepfung, Keycloak-/Entra-Beispielen, Claim-Mehrfachwerten und Abnahmecheckliste steht in
+[Identity-Provider-Plugins (OpenID Connect)](identity-provider-plugins.md). Eine direkt
+ausfuehrbare Implementierung mit Keycloak-, Entra- und Generic-OIDC-Preset liegt im
+[`IamOidc`-Referenzplugin](../../plugins/IamOidc/README.md).
 
 `plugin.json` Extension-Point: `"identity.provider"`
 
@@ -301,6 +362,86 @@ Die Eingabefelder werden ueber `PluginFieldSchema` beschrieben. Feldfehler werde
 Plugins koennen in `Admin/Functions` ein generisches Panel registrieren. Der Host laedt die Panel-Metadaten ueber `GET /api/admin/plugin-commands/panels` und fuehrt schema-gesteuerte Befehle ueber `POST /api/admin/plugin-commands` aus.
 
 Das ist fuer plugin-eigene Konfigurationsflaechen gedacht, ohne plugin-spezifische Core-Views einzubauen.
+
+### Hauptnavigation (`nav.main`)
+
+Ein Plugin registriert seine Eintraege in der Hauptnavigation ueber `sink.AddNavEntries(...)` in `RegisterContributions`. Jeder Eintrag ist ein flacher Link, sofern er keinen `GroupKey` setzt.
+
+```csharp
+sink.AddNavEntries(
+[
+    new PluginNavEntry(
+        Label: "Fahrzeuge",
+        Icon: "bi-car-front",
+        Route: "/plugin-pages/clubgear.plugin.carinfo/carinfo.list",
+        RequiredPermission: "clubgear.plugin.carinfo.read",
+        SortOrder: 50)
+]);
+```
+
+**Regeln:**
+- `SortOrder` bestimmt die Reihenfolge unter allen Plugin-Eintraegen (nicht nur den eigenen).
+- `RequiredPermission` kann `null` sein; der Eintrag ist dann fuer jeden angemeldeten Nutzer sichtbar.
+- Der Host prueft die Berechtigung serverseitig, bevor der Eintrag ueberhaupt gerendert wird — ein nicht sichtbarer Eintrag ist also keine Autorisierungsmassnahme, sondern reines UI-Verhalten.
+
+### Mehrere Navigationseintraege als ein Dropdown gruppieren (`GroupKey`, Contract 1.14.0)
+
+Ein Plugin mit mehreren zusammengehoerenden Seiten (z. B. Buchungen, Budget, Berichte) kann dafuer mehrere flache Links vermeiden und sie statt dessen in **einem** Dropdown in der Hauptnavigation zusammenfassen. Dazu bekommen alle beteiligten `PluginNavEntry`s denselben `GroupKey`; nur der erste (nach `SortOrder`) braucht `GroupLabel`/`GroupIcon` zu setzen — die bestimmen Beschriftung und Icon des Dropdown-Buttons selbst.
+
+```csharp
+sink.AddNavEntries(
+[
+    new PluginNavEntry(
+        Label: "Buchungen",
+        Icon: "bi-journal-bookmark",
+        Route: "/plugin-pages/clubgear.plugin.finance/finance.treasurer.bookings",
+        RequiredPermission: "clubgear.plugin.finance.treasurer.read",
+        SortOrder: 10)
+    {
+        GroupKey   = "finance",       // gemeinsamer Dropdown-Schluessel
+        GroupLabel = "Finanzen",      // Beschriftung des Dropdown-Buttons
+        GroupIcon  = "bi-cash-stack", // Icon des Dropdown-Buttons
+    },
+    new PluginNavEntry(
+        Label: "Berichte",
+        Icon: "bi-clipboard-data",
+        Route: "/plugin-pages/clubgear.plugin.finance/finance.treasurer.reports",
+        RequiredPermission: "clubgear.plugin.finance.treasurer.read",
+        SortOrder: 20)
+    {
+        GroupKey = "finance", // GroupLabel/GroupIcon hier nicht noetig
+    }
+]);
+```
+
+**Regeln:**
+- Alle Eintraege mit demselben `GroupKey` erscheinen als **ein** Dropdown; `GroupLabel`/`GroupIcon` werden vom ersten Eintrag der Gruppe (nach `SortOrder`) genommen, bei den anderen werden sie ignoriert.
+- Fehlt `GroupKey`, bleibt der Eintrag ein flacher Link (bisheriges Verhalten) — binaerkompatibel, kein Plugin muss sich anpassen.
+- `GroupKey` ist nur innerhalb der eigenen Navigation sinnvoll eindeutig zu halten; zwei Plugins mit demselben `GroupKey` wuerden in **einem** gemeinsamen Dropdown landen.
+
+### Mehrere generische Seiten statt einer Seite mit internem "Bereich" (`PageKey`, Contract 1.14.0)
+
+Fuer das Beispiel oben braucht jede Dropdown-Zeile eine **eigene** Seite mit eigenen Spalten/Befehlen — nicht eine Seite, die per Query-Parameter zwischen "Bereichen" umschaltet. Dazu registriert das Plugin mehrere `page.generic`-Provider und gibt jedem einen eigenen `PageKey`:
+
+```csharp
+sink.AddPageProvider(new PluginPageProviderContribution(typeof(FinanceBookingsPageProvider).FullName!)
+{
+    PageKey = "finance.treasurer.bookings"
+});
+sink.AddPageProvider(new PluginPageProviderContribution(typeof(FinanceReportsPageProvider).FullName!)
+{
+    PageKey = "finance.treasurer.reports"
+});
+```
+
+Jede Provider-Klasse implementiert `IPluginPageProvider` eigenstaendig und liefert in `GetPageDefinitionAsync` nur die Spalten/Befehle, die zu ihrem eigenen Bereich gehoeren.
+
+**Regeln:**
+- Registriert ein Modul **genau einen** Provider ohne `PageKey` (bisheriges Verhalten), loest der Host weiterhin unabhaengig von der angeforderten Route genau diesen Provider auf.
+- Registriert ein Modul **mehrere** Provider, braucht **jeder** einen eigenen, eindeutigen `PageKey` — sonst ist der zweite (und jeder weitere) Provider nie erreichbar, weil der Host sonst immer den erstregistrierten nimmt.
+- Die Route, unter der eine Seite erreichbar ist, ist `/plugin-pages/{moduleId}/{pageKey}` — der `PageKey` in der Contribution muss exakt dem Pfadsegment entsprechen, auf das der zugehoerige `PluginNavEntry.Route` zeigt.
+
+**Beispiel:** Finance teilt eine fruehere Einzelseite mit internem Query-Parameter (`?section=...`) in vier eigenstaendige Seiten (`finance.treasurer.fibu`, `.budget`, `.fees`, `.reports`) auf und gruppiert deren Nav-Eintraege unter `GroupKey = "finance"` zu einem "Finanzen"-Dropdown.
 
 ## 7. Runtime-Route aufrufen
 

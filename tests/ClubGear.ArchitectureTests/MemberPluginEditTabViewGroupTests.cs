@@ -31,6 +31,7 @@ public sealed class MemberPluginEditTabViewGroupTests
         var memberService = new StubMemberFeatureService();
         var slotService = new MemberPluginSlotService(
             registry,
+            Plugins.TestContributionActivatorFactory.Create(registry, CreateRuntimeAdapter(memberService)),
             CreateRuntimeAdapter(memberService),
             memberService,
             NullLogger<MemberPluginSlotService>.Instance);
@@ -56,6 +57,7 @@ public sealed class MemberPluginEditTabViewGroupTests
         var memberService = new StubMemberFeatureService();
         var slotService = new MemberPluginSlotService(
             registry,
+            Plugins.TestContributionActivatorFactory.Create(registry, CreateRuntimeAdapter(memberService)),
             CreateRuntimeAdapter(memberService),
             memberService,
             NullLogger<MemberPluginSlotService>.Instance);
@@ -122,7 +124,7 @@ public sealed class MemberPluginEditTabViewGroupTests
             Array.Empty<PluginIdentityProviderContribution>(),
             Array.Empty<PluginSelfServiceProfileProviderContribution>());
 
-        registry.Register(runtime, module, AssemblyLoadContext.GetLoadContext(module.GetType().Assembly)!);
+        registry.RegisterAsync(runtime, module, AssemblyLoadContext.GetLoadContext(module.GetType().Assembly)!).GetAwaiter().GetResult();
     }
 
     // -----------------------------------------------------------------------
@@ -156,6 +158,14 @@ public sealed class MemberPluginEditTabViewGroupTests
 
     private sealed class GroupedEditTabProvider : IMemberEditTabProvider
     {
+        // CORE-18. Contributions are host-constructed as T(IPluginHostContext).
+        public GroupedEditTabProvider(IPluginHostContext hostContext)
+        {
+            HostContext = hostContext;
+        }
+
+        public IPluginHostContext HostContext { get; }
+
         public Task<IReadOnlyList<MemberEditTabSlot>> GetTabsAsync(
             PluginMemberDetail member,
             IPluginHostContext hostContext,
@@ -201,6 +211,14 @@ public sealed class MemberPluginEditTabViewGroupTests
 
     private sealed class UngroupedEditTabProvider : IMemberEditTabProvider
     {
+        // CORE-18. Contributions are host-constructed as T(IPluginHostContext).
+        public UngroupedEditTabProvider(IPluginHostContext hostContext)
+        {
+            HostContext = hostContext;
+        }
+
+        public IPluginHostContext HostContext { get; }
+
         public Task<IReadOnlyList<MemberEditTabSlot>> GetTabsAsync(
             PluginMemberDetail member,
             IPluginHostContext hostContext,

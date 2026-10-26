@@ -161,7 +161,7 @@ public sealed class PluginAdminQueryServiceTests
             Array.Empty<Plugin.Contracts.PluginIdentityProviderContribution>(),
             Array.Empty<Plugin.Contracts.PluginSelfServiceProfileProviderContribution>());
 
-        registry.Register(runtime, module, AssemblyLoadContext.GetLoadContext(module.GetType().Assembly)!);
+        registry.RegisterAsync(runtime, module, AssemblyLoadContext.GetLoadContext(module.GetType().Assembly)!).GetAwaiter().GetResult();
     }
 
     private static async Task<Fixture> CreateFixtureAsync()

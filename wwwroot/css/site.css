@@ -893,6 +893,10 @@ footer a:hover,
   border-bottom: 1px solid #e9edf0;
 }
 
+[data-plugin-slot="detail-cards"] .card-body p {
+  white-space: pre-line;
+}
+
 .selfservice-status {
   display: inline-flex;
   gap: 0.45rem;
@@ -1624,4 +1628,193 @@ footer a:hover,
   .plugin-admin-delete-form {
     justify-content: space-between;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Generic plugin pages (IPluginPageProvider — e.g. Finanzübersicht/Kassenwart)
+   --------------------------------------------------------------------------- */
+
+.cg-plugin-page {
+  display: grid;
+  gap: var(--cg-page-gap);
+}
+
+.cg-plugin-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.4rem 1.5rem;
+  border: 1px solid var(--cg-panel-border);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at top right, rgba(239, 125, 0, 0.16), transparent 34%),
+    linear-gradient(135deg, rgba(0, 119, 186, 0.08), rgba(255, 255, 255, 0.96));
+}
+
+.cg-plugin-hero__eyebrow {
+  color: #6a7178;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.cg-plugin-hero__title {
+  font-size: 1.7rem;
+  line-height: 1.15;
+}
+
+.cg-plugin-hero__subtitle {
+  color: #4d5358;
+  font-size: 0.95rem;
+}
+
+.cg-plugin-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.cg-plugin-search__group {
+  max-width: 32rem;
+  border-radius: 0.9rem;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+}
+
+.cg-plugin-search__group .form-control,
+.cg-plugin-search__group .input-group-text,
+.cg-plugin-search__group .btn {
+  border-color: #d5dce2;
+  min-height: 2.9rem;
+}
+
+.cg-plugin-search__group .form-control:focus {
+  box-shadow: none;
+}
+
+.cg-plugin-search__group:focus-within {
+  box-shadow: 0 0 0 0.2rem rgba(0, 119, 186, 0.12);
+}
+
+.cg-plugin-table-card {
+  overflow: hidden;
+}
+
+.cg-plugin-table {
+  --bs-table-hover-bg: rgba(0, 119, 186, 0.05);
+  margin-bottom: 0;
+}
+
+.cg-plugin-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f4f7fa;
+  color: #16354f;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--cg-panel-border);
+  padding: 0.85rem 1rem;
+}
+
+.cg-plugin-table tbody td {
+  padding: 0.8rem 1rem;
+  border-top: 1px solid #f0f2f4;
+  vertical-align: middle;
+}
+
+.cg-plugin-table tbody tr:hover {
+  background: var(--bs-table-hover-bg);
+}
+
+.cg-plugin-table__actions,
+.cg-plugin-table__actions-head {
+  white-space: nowrap;
+  width: 1%;
+}
+
+.cg-plugin-table__group-header {
+  font-weight: 600;
+  background: rgba(0, 119, 186, 0.04);
+}
+
+.cg-plugin-empty {
+  padding: 3rem 1rem;
+  color: #6a7178;
+}
+
+.cg-plugin-empty__icon {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 2.25rem;
+  color: #b7c0c8;
+}
+
+.cg-plugin-detail-grid {
+  display: grid;
+  gap: 0;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+
+.cg-plugin-detail-grid__item {
+  padding: 0.85rem 0.25rem;
+  border-bottom: 1px solid #f0f2f4;
+}
+
+.cg-plugin-detail-grid__item dt {
+  color: #6a7178;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  margin-bottom: 0.2rem;
+}
+
+.cg-plugin-detail-grid__item dd {
+  color: #16354f;
+  font-size: 1.02rem;
+  word-break: break-word;
+}
+
+@media (max-width: 576px) {
+  .cg-plugin-hero {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .cg-plugin-hero__actions .btn,
+  .cg-plugin-search__group {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.external-login-table__actions-head {
+  min-width: 15rem;
+}
+
+.external-login-table__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.external-login-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.external-login-test-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
 }

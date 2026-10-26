@@ -29,7 +29,23 @@ public sealed class PluginLoaderAuditSinkCollectionTests
 
         var runtime = loadResult.LoadedPlugin!.Runtime;
         Assert.Equal(1, runtime.AuditSinks.Count);
-        Assert.Equal("MyProvider", runtime.AuditSinks[0].ProviderType);
+        Assert.Equal(typeof(ContributedAuditSinkProvider).FullName, runtime.AuditSinks[0].ProviderType);
+    }
+
+    /// <summary>
+    /// An audit sink provider that lives in the packaged plugin assembly. Since CORE-16 the loader
+    /// resolves every declared contribution type from the module's own assembly, so a placeholder
+    /// type name would be a load-time rejection.
+    /// </summary>
+    public sealed class ContributedAuditSinkProvider
+    {
+        // CORE-18. Contributions are host-constructed as T(IPluginHostContext).
+        public ContributedAuditSinkProvider(IPluginHostContext hostContext)
+        {
+            HostContext = hostContext;
+        }
+
+        public IPluginHostContext HostContext { get; }
     }
 
     /// <summary>
@@ -46,7 +62,7 @@ public sealed class PluginLoaderAuditSinkCollectionTests
                 "Tests",
                 "MIT",
                 typeof(AuditSinkContributingPluginModule).FullName!,
-                ">=1.0.0",
+                ">=1.13.0",
                 ["members.read"],
                 ["audit.sink"]);
         }
@@ -55,7 +71,7 @@ public sealed class PluginLoaderAuditSinkCollectionTests
 
         public void RegisterContributions(IPluginContributionSink sink)
         {
-            sink.AddAuditSink(new PluginAuditSinkContribution("MyProvider"));
+            sink.AddAuditSink(new PluginAuditSinkContribution(typeof(ContributedAuditSinkProvider).FullName!));
         }
     }
 }

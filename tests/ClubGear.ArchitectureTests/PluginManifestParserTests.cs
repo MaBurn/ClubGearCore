@@ -1,3 +1,4 @@
+using ClubGear.Plugin.Contracts;
 using ClubGear.Services.Plugins.Manifest;
 using Xunit;
 
@@ -169,7 +170,11 @@ public sealed class PluginManifestParserTests
                     "member.action",
                     "selfservice.profile",
                     "admin.functions",
-                    "runtime.route"
+                    "runtime.route",
+                    "nav.main",
+                    "page.generic",
+                    "audit.sink",
+                    "identity.provider"
                 ]
             }
             """;
@@ -178,7 +183,10 @@ public sealed class PluginManifestParserTests
 
         Assert.True(result.IsValid);
         Assert.NotNull(result.Manifest);
-        Assert.Equal(7, result.Manifest!.ExtensionPoints.Count);
+        Assert.Equal(PluginExtensionPoints.All.Count, result.Manifest!.ExtensionPoints.Count);
+        Assert.Equal(
+            PluginExtensionPoints.All.OrderBy(value => value),
+            result.Manifest.ExtensionPoints.OrderBy(value => value));
     }
 
     [Fact]

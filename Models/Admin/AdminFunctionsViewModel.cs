@@ -11,6 +11,7 @@ public sealed class AdminFunctionsViewModel
     public IReadOnlyList<NotificationRecord> NotificationRecords { get; init; } = Array.Empty<NotificationRecord>();
     public bool MaintenanceModeEnabled { get; init; }
     public bool CanManageMembershipTypes { get; init; }
+    public MembershipTypesViewModel? MembershipTypes { get; init; }
     public ActionFeedbackViewModel? Feedback { get; init; }
 }
 

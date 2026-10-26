@@ -159,6 +159,7 @@ public sealed class SelfServiceFeatureService : ISelfServiceFeatureService
                 AddressCount = member.Addresses.Count
             };
 
+            MemberEmailInvalidationService.ResetInvalidOnChange(member, model.Email);
             member.Email = model.Email;
             member.PhoneNumber = model.PhoneNumber;
             MergeMemberAddresses(member, model.Addresses);

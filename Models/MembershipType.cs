@@ -30,6 +30,19 @@ public class MembershipType
     [StringLength(100)]
     public string? SubMemberLabel { get; set; }
 
+    /// <summary>
+    /// Recurring membership fee charged per billing interval. Nullable so pre-existing
+    /// types (created before this feature) remain valid with no fee configured.
+    /// </summary>
+    public decimal? FeeAmount { get; set; }
+
+    /// <summary>
+    /// Billing cadence for <see cref="FeeAmount"/>. Constrained to "Yearly" / "Quarterly";
+    /// nullable when no fee/interval is configured.
+    /// </summary>
+    [StringLength(20)]
+    public string? BillingInterval { get; set; }
+
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;

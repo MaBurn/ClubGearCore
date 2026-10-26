@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ClubGear.Controllers;
 
+[Authorize]
 public class AccountController : Controller
 {
     private readonly IAccountFeatureService _accountFeatureService;
@@ -41,12 +42,16 @@ public class AccountController : Controller
         var outcome = await _accountFeatureService.LoginAsync(email, password, cancellationToken);
         if (outcome.Status == AccountLoginStatus.MissingCredentials)
         {
+            ViewData["ActiveProviders"] =
+                await _externalLoginService.GetActiveProvidersAsync(cancellationToken);
             ModelState.AddModelError(string.Empty, "Bitte E-Mail und Passwort eingeben.");
             return View();
         }
 
         if (outcome.Status == AccountLoginStatus.InvalidCredentials)
         {
+            ViewData["ActiveProviders"] =
+                await _externalLoginService.GetActiveProvidersAsync(cancellationToken);
             ModelState.AddModelError(string.Empty, "Ungueltige Anmeldedaten.");
             return View();
         }
@@ -130,7 +135,10 @@ public class AccountController : Controller
             return BadRequest("Unknown provider or incomplete configuration.");
         }
 
-        var scheme = $"oidc.{provider}";
+        var scheme = properties.Items.TryGetValue("LoginProvider", out var configuredScheme)
+            && !string.IsNullOrWhiteSpace(configuredScheme)
+                ? configuredScheme
+                : $"oidc.{provider}";
         return Challenge(properties, scheme);
     }
 

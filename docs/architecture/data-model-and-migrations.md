@@ -77,7 +77,7 @@ SeedAsync()
 | `DataprivacyAccepted` | INTEGER | ✓ | DEFAULT 0 | DSGVO-Zustimmung |
 | `NewsletterConsent` | INTEGER | ✓ | DEFAULT 0 | Newsletter-Einwilligung |
 | `ProfileImagePath` | TEXT(255) | | | Pfad zum Profilbild |
-| `OauthID` | TEXT(100) | | UNIQUE | OAuth2/OIDC Subject-ID |
+| `OauthID` | TEXT(100) | | UNIQUE | Effektiver OIDC-Link-Schluessel (rohes oder vom Provider-Plugin gemapptes `sub`) |
 | `OAuthUserName` | TEXT(100) | | | OAuth-Benutzername |
 | `ApplicationUserId` | TEXT(100) | | UNIQUE, FK → AspNetUsers.Id | Verknüpfter ASP.NET Identity User |
 | `KeycloakUsername` | TEXT(255) | | | Keycloak-Benutzername |
@@ -91,7 +91,7 @@ SeedAsync()
 **Indizes:**
 - `UNIQUE(MemberNumber)` — eindeutige Mitgliedsnummer
 - `UNIQUE(ApplicationUserId)` — 1:1-Verknüpfung mit Identity-User
-- `UNIQUE(OauthID)` — eindeutige OAuth-ID
+- `UNIQUE(OauthID)` — global eindeutiger OIDC-Link-Schluessel
 
 **Computed Property (keine DB-Spalte):**
 - `FullName` — gibt `CompanyName`, `ClubName` oder `"FirstName LastName"` zurück (je nach Typ)

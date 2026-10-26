@@ -1,4 +1,5 @@
 using System.Runtime.Loader;
+using ClubGear.ArchitectureTests.Plugins;
 using ClubGear.Plugin.Contracts;
 using ClubGear.Services.Abstractions;
 using ClubGear.Services.Plugins.AuditSink;
@@ -42,12 +43,12 @@ public sealed class PluginAuditSinkServiceTests
     public async Task DispatchAsync_CompletesWithoutProviderCall_WhenNoSinksRegistered()
     {
         var registry = new StubRegistryReader(Array.Empty<RegisteredPluginRuntime>(), _ => null);
-        var service = new PluginAuditSinkService(registry, NullLogger<PluginAuditSinkService>.Instance);
+        var service = new PluginAuditSinkService(registry, new StubPluginContributionActivator(registry.CreateProvider), NullLogger<PluginAuditSinkService>.Instance);
 
         // Must complete without throwing.
         await service.DispatchAsync(MakeEvent());
 
-        Assert.Equal(0, registry.CreateMemberProviderCallCount);
+        Assert.Equal(0, registry.CreateProviderCallCount);
     }
 
     // ---------------------------------------------------------------
@@ -62,7 +63,7 @@ public sealed class PluginAuditSinkServiceTests
 
         var runtime = MakeRuntime("plugin.a", [new PluginAuditSinkContribution("ProviderA")]);
         var registry = new StubRegistryReader([runtime], contribution => capturingProvider);
-        var service = new PluginAuditSinkService(registry, NullLogger<PluginAuditSinkService>.Instance);
+        var service = new PluginAuditSinkService(registry, new StubPluginContributionActivator(registry.CreateProvider), NullLogger<PluginAuditSinkService>.Instance);
 
         await service.DispatchAsync(auditEvent);
 
@@ -97,7 +98,7 @@ public sealed class PluginAuditSinkServiceTests
             [runtime],
             contribution => providers.TryGetValue(contribution.ProviderType, out var p) ? p : null);
 
-        var service = new PluginAuditSinkService(registry, NullLogger<PluginAuditSinkService>.Instance);
+        var service = new PluginAuditSinkService(registry, new StubPluginContributionActivator(registry.CreateProvider), NullLogger<PluginAuditSinkService>.Instance);
 
         // Must not throw despite first sink throwing.
         await service.DispatchAsync(auditEvent);
@@ -116,13 +117,13 @@ public sealed class PluginAuditSinkServiceTests
     {
         var runtime = MakeRuntime("plugin.a", [new PluginAuditSinkContribution("UnresolvableProvider")]);
         var registry = new StubRegistryReader([runtime], _ => null);
-        var service = new PluginAuditSinkService(registry, NullLogger<PluginAuditSinkService>.Instance);
+        var service = new PluginAuditSinkService(registry, new StubPluginContributionActivator(registry.CreateProvider), NullLogger<PluginAuditSinkService>.Instance);
 
         // Must complete without throwing.
         await service.DispatchAsync(MakeEvent());
 
         // CreateMemberProvider was called once (for the single contribution) but returned null.
-        Assert.Equal(1, registry.CreateMemberProviderCallCount);
+        Assert.Equal(1, registry.CreateProviderCallCount);
     }
 
     // ---------------------------------------------------------------
@@ -143,7 +144,7 @@ public sealed class PluginAuditSinkServiceTests
             _providerFactory = providerFactory;
         }
 
-        public int CreateMemberProviderCallCount => _createMemberProviderCallCount;
+        public int CreateProviderCallCount => _createMemberProviderCallCount;
 
         public IReadOnlyList<RegisteredPluginRuntime> GetRegisteredPlugins() => _runtimes;
 
@@ -152,8 +153,14 @@ public sealed class PluginAuditSinkServiceTests
 
         public IPluginModule? GetModule(string moduleId) => null;
 
-        public TProvider? CreateMemberProvider<TProvider>(string moduleId, string providerType)
-            where TProvider : class
+        public Type? ResolveContributionType(string moduleId, string contributionType) => null;
+
+        /// <summary>
+        /// CORE-18. Construction moved to <see cref="IPluginContributionActivator"/>; this stub
+        /// keeps the same lookup so the tests still describe "which sink does this module offer",
+        /// and counts the calls the way it used to.
+        /// </summary>
+        public object? CreateProvider(string moduleId, string providerType)
         {
             Interlocked.Increment(ref _createMemberProviderCallCount);
 
@@ -171,7 +178,7 @@ public sealed class PluginAuditSinkServiceTests
                 return null;
             }
 
-            return _providerFactory(contribution) as TProvider;
+            return _providerFactory(contribution);
         }
     }
 

@@ -1,11 +1,18 @@
 using System.IO.Compression;
-using System.Text;
+using System.Text.RegularExpressions;
 using ClubGear.Services.Abstractions;
 
 namespace ClubGear.Services.Plugins.Installation;
 
 public sealed class FileSystemPluginPackageStore : IPluginPackageStore
 {
+    private static readonly Regex SafePluginKeyPattern = new(
+        "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+        RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
+    private static readonly Regex Sha256Pattern = new(
+        "^[A-Fa-f0-9]{64}$",
+        RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
+
     private readonly string _rootPath;
 
     public FileSystemPluginPackageStore()
@@ -31,7 +38,8 @@ public sealed class FileSystemPluginPackageStore : IPluginPackageStore
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var packageDirectory = Path.Combine(_rootPath, "packages", SanitizePathSegment(pluginKey), packageHash);
+        ValidateStorageIdentifiers(pluginKey, packageHash);
+        var packageDirectory = GetContainedPath("packages", pluginKey, packageHash);
         Directory.CreateDirectory(packageDirectory);
 
         var packagePath = Path.Combine(packageDirectory, "package.zip");
@@ -49,14 +57,21 @@ public sealed class FileSystemPluginPackageStore : IPluginPackageStore
         ArgumentException.ThrowIfNullOrWhiteSpace(packageHash);
         ArgumentException.ThrowIfNullOrWhiteSpace(packagePath);
 
-        if (!File.Exists(packagePath))
+        ValidateStorageIdentifiers(pluginKey, packageHash);
+        var expectedPackagePath = GetContainedPath("packages", pluginKey, packageHash, "package.zip");
+        if (!string.Equals(Path.GetFullPath(packagePath), expectedPackagePath, PathComparison))
         {
-            throw new FileNotFoundException("Plugin-Paket wurde nicht gefunden.", packagePath);
+            throw new InvalidDataException("Plugin-Paketpfad liegt ausserhalb des erwarteten Speicherorts.");
+        }
+
+        if (!File.Exists(expectedPackagePath))
+        {
+            throw new FileNotFoundException("Plugin-Paket wurde nicht gefunden.", expectedPackagePath);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var extractionDirectory = Path.Combine(_rootPath, "extracted", SanitizePathSegment(pluginKey), packageHash);
+        var extractionDirectory = GetContainedPath("extracted", pluginKey, packageHash);
         if (Directory.Exists(extractionDirectory)
             && Directory.EnumerateFileSystemEntries(extractionDirectory).Any())
         {
@@ -70,7 +85,7 @@ public sealed class FileSystemPluginPackageStore : IPluginPackageStore
 
         Directory.CreateDirectory(extractionDirectory);
 
-        using var packageStream = File.OpenRead(packagePath);
+        using var packageStream = File.OpenRead(expectedPackagePath);
         using var archive = new ZipArchive(packageStream, ZipArchiveMode.Read, leaveOpen: false);
         foreach (var entry in archive.Entries)
         {
@@ -78,7 +93,7 @@ public sealed class FileSystemPluginPackageStore : IPluginPackageStore
 
             var destinationPath = Path.GetFullPath(Path.Combine(extractionDirectory, entry.FullName));
             var extractionRoot = Path.GetFullPath(extractionDirectory) + Path.DirectorySeparatorChar;
-            if (!destinationPath.StartsWith(extractionRoot, StringComparison.Ordinal))
+            if (!destinationPath.StartsWith(extractionRoot, PathComparison))
             {
                 throw new InvalidDataException("Plugin-Paket enthaelt einen ungueltigen Dateipfad.");
             }
@@ -108,13 +123,14 @@ public sealed class FileSystemPluginPackageStore : IPluginPackageStore
 
         ct.ThrowIfCancellationRequested();
 
-        var packagesPath = Path.Combine(_rootPath, "packages", SanitizePathSegment(pluginKey));
+        ValidatePluginKey(pluginKey);
+        var packagesPath = GetContainedPath("packages", pluginKey);
         if (Directory.Exists(packagesPath))
         {
             Directory.Delete(packagesPath, recursive: true);
         }
 
-        var extractedPath = Path.Combine(_rootPath, "extracted", SanitizePathSegment(pluginKey));
+        var extractedPath = GetContainedPath("extracted", pluginKey);
         if (Directory.Exists(extractedPath))
         {
             Directory.Delete(extractedPath, recursive: true);
@@ -123,16 +139,38 @@ public sealed class FileSystemPluginPackageStore : IPluginPackageStore
         return Task.CompletedTask;
     }
 
-    private static string SanitizePathSegment(string value)
-    {
-        var invalidCharacters = Path.GetInvalidFileNameChars();
-        var builder = new StringBuilder(value.Length);
+    private static StringComparison PathComparison => OperatingSystem.IsWindows()
+        ? StringComparison.OrdinalIgnoreCase
+        : StringComparison.Ordinal;
 
-        foreach (var character in value)
+    private string GetContainedPath(params string[] segments)
+    {
+        var root = Path.GetFullPath(_rootPath);
+        var path = Path.GetFullPath(Path.Combine(new[] { root }.Concat(segments).ToArray()));
+        var rootPrefix = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        if (!path.StartsWith(rootPrefix, PathComparison))
         {
-            builder.Append(invalidCharacters.Contains(character) ? '_' : character);
+            throw new InvalidDataException("Plugin-Speicherpfad liegt ausserhalb des konfigurierten Stammverzeichnisses.");
         }
 
-        return builder.ToString();
+        return path;
+    }
+
+    private static void ValidateStorageIdentifiers(string pluginKey, string packageHash)
+    {
+        ValidatePluginKey(pluginKey);
+        if (!Sha256Pattern.IsMatch(packageHash))
+        {
+            throw new ArgumentException("Paket-Hash muss ein SHA-256-Wert in Hexadezimaldarstellung sein.", nameof(packageHash));
+        }
+    }
+
+    private static void ValidatePluginKey(string pluginKey)
+    {
+        if (!SafePluginKeyPattern.IsMatch(pluginKey))
+        {
+            throw new ArgumentException("Plugin-Schluessel enthaelt unzulaessige Zeichen.", nameof(pluginKey));
+        }
     }
 }

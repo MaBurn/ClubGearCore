@@ -1,4 +1,5 @@
 using ClubGear.Services.Plugins.Security;
+using System.Text.Json;
 using Xunit;
 
 namespace ClubGear.ArchitectureTests;
@@ -15,12 +16,16 @@ public sealed class PluginPackageSignatureVerificationTests
     private readonly PluginIntegrityVerifier _sut = new();
 
     [Theory]
-    [InlineData("Finance", "Finance-1.6.0")]
-    [InlineData("CarInfo", "CarInfo-1.0.6")]
-    [InlineData("ServiceBook", "ServiceBook-1.0.3")]
-    public void Verify_AcceptsFreshlyPackagedPlugin_WithoutSignatureValidationErrors(string pluginDir, string packageName)
+    [InlineData("Finance")]
+    [InlineData("CarInfo")]
+    [InlineData("ServiceBook")]
+    public void Verify_AcceptsFreshlyPackagedPlugin_WithoutSignatureValidationErrors(string pluginDir)
     {
         var distDir = GetProjectFilePath("plugins", pluginDir, "dist");
+        using var manifest = JsonDocument.Parse(File.ReadAllText(GetProjectFilePath("plugins", pluginDir, "plugin.json")));
+        var version = manifest.RootElement.GetProperty("version").GetString();
+        Assert.False(string.IsNullOrWhiteSpace(version));
+        var packageName = $"{pluginDir}-{version}";
         var zipPath = Path.Combine(distDir, $"{packageName}.zip");
         var sha256Path = Path.Combine(distDir, $"{packageName}.sha256");
         var signaturePath = Path.Combine(distDir, $"{packageName}.signature.bin");

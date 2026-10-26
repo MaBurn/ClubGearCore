@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using System.Reflection;
 using ClubGear.Plugin.Contracts;
 using ClubGear.Services.Abstractions;
 using ClubGear.Data;
@@ -10,14 +9,6 @@ namespace ClubGear.Services.Plugins.Runtime;
 
 public sealed class PluginRuntimeAdapter : IPluginRuntimeAdapter
 {
-    private static readonly string[] ForbiddenNamespaces =
-    {
-        "ClubGear.Services",
-        "ClubGear.Data",
-        "ClubGear.Controllers",
-        "ClubGear.Models"
-    };
-
     private readonly IExtensionPermissionFacade _permissionFacade;
     private readonly IExtensionAuditFacade _auditFacade;
     private readonly IExtensionNotificationFacade _notificationFacade;
@@ -26,6 +17,7 @@ public sealed class PluginRuntimeAdapter : IPluginRuntimeAdapter
     private readonly PluginSchemaNamePolicy? _schemaNamePolicy;
     private readonly IServiceScopeFactory? _scopeFactory;
     private readonly ILogger<PluginRuntimeAdapter> _logger;
+    private readonly IPluginActivityTracker? _activityTracker;
 
     public PluginRuntimeAdapter(
         IExtensionPermissionFacade permissionFacade,
@@ -35,7 +27,8 @@ public sealed class PluginRuntimeAdapter : IPluginRuntimeAdapter
         ILogger<PluginRuntimeAdapter> logger,
         ApplicationDbContext? dbContext = null,
         PluginSchemaNamePolicy? schemaNamePolicy = null,
-        IServiceScopeFactory? scopeFactory = null)
+        IServiceScopeFactory? scopeFactory = null,
+        IPluginActivityTracker? activityTracker = null)
     {
         _permissionFacade = permissionFacade;
         _auditFacade = auditFacade;
@@ -45,6 +38,7 @@ public sealed class PluginRuntimeAdapter : IPluginRuntimeAdapter
         _schemaNamePolicy = schemaNamePolicy;
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _activityTracker = activityTracker;
     }
 
     public IPluginRuntimeBridge CreateBridge(IPluginModule pluginModule, ClaimsPrincipal user)
@@ -111,6 +105,9 @@ public sealed class PluginRuntimeAdapter : IPluginRuntimeAdapter
 
         EnsureIsolated(capability);
 
+        // The token keeps deactivation waiting until this invocation is done (CORE-17).
+        using var activity = AcquireActivity(pluginModule.Manifest.ModuleId);
+
         var bridge = CreateBridge(pluginModule, user);
         await capability(bridge, cancellationToken);
     }
@@ -129,6 +126,10 @@ public sealed class PluginRuntimeAdapter : IPluginRuntimeAdapter
 
         EnsureIsolated(isolatedDelegate ?? capability);
 
+        // The token keeps deactivation waiting until this invocation is done (CORE-17).
+        // Plugin HTTP routes inherit this because they funnel through InvokeAsync.
+        using var activity = AcquireActivity(pluginModule.Manifest.ModuleId);
+
         var bridge = CreateBridge(pluginModule, user);
         if (!string.IsNullOrWhiteSpace(requiredPermissionKey))
         {
@@ -142,6 +143,26 @@ public sealed class PluginRuntimeAdapter : IPluginRuntimeAdapter
         return await capability(bridge, cancellationToken);
     }
 
+    private IDisposable? AcquireActivity(string moduleId)
+    {
+        if (_activityTracker is null)
+        {
+            return null;
+        }
+
+        var token = _activityTracker.TryAcquire(moduleId);
+        if (token is null)
+        {
+            _logger.LogWarning(
+                "Plugin-Aufruf abgelehnt, weil das Modul {PluginKey} gerade deaktiviert wird.",
+                moduleId);
+
+            throw new UserFriendlyException("Das Plugin wird gerade deaktiviert.");
+        }
+
+        return token;
+    }
+
     public void EnsureIsolated(Delegate pluginDelegate)
     {
         ArgumentNullException.ThrowIfNull(pluginDelegate);
@@ -152,7 +173,7 @@ public sealed class PluginRuntimeAdapter : IPluginRuntimeAdapter
             return;
         }
 
-        if (!TryFindForbiddenReference(pluginType, out var violation))
+        if (!PluginIsolationScanner.TryFindViolation(pluginType, out var violation))
         {
             return;
         }
@@ -163,83 +184,6 @@ public sealed class PluginRuntimeAdapter : IPluginRuntimeAdapter
             violation);
 
         throw new UserFriendlyException("Direkter Zugriff auf Core-Namensraeume ist fuer Plugins nicht erlaubt.");
-    }
-
-    private static bool TryFindForbiddenReference(Type pluginType, out string? violation)
-    {
-        foreach (var referencedType in EnumerateReferencedTypes(pluginType))
-        {
-            if (!IsForbiddenType(referencedType, out violation))
-            {
-                continue;
-            }
-
-            return true;
-        }
-
-        violation = null;
-        return false;
-    }
-
-    private static IEnumerable<Type> EnumerateReferencedTypes(Type pluginType)
-    {
-        yield return pluginType;
-
-        foreach (var field in pluginType.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
-        {
-            yield return field.FieldType;
-        }
-    }
-
-    private static bool IsForbiddenType(Type candidateType, out string? violation)
-    {
-        foreach (var type in FlattenTypes(candidateType))
-        {
-            if (typeof(ApplicationDbContext).IsAssignableFrom(type))
-            {
-                violation = type.FullName;
-                return true;
-            }
-
-            var namespaceName = type.Namespace;
-            if (string.IsNullOrWhiteSpace(namespaceName))
-            {
-                continue;
-            }
-
-            if (ForbiddenNamespaces.Any(forbidden => namespaceName.StartsWith(forbidden, StringComparison.Ordinal)))
-            {
-                violation = type.FullName;
-                return true;
-            }
-        }
-
-        violation = null;
-        return false;
-    }
-
-    private static IEnumerable<Type> FlattenTypes(Type type)
-    {
-        var pending = new Queue<Type>();
-        pending.Enqueue(type);
-
-        while (pending.Count > 0)
-        {
-            var current = pending.Dequeue();
-            var actual = Nullable.GetUnderlyingType(current) ?? current;
-
-            if (actual.HasElementType && actual.GetElementType() is { } elementType)
-            {
-                pending.Enqueue(elementType);
-            }
-
-            foreach (var genericArgument in actual.GetGenericArguments())
-            {
-                pending.Enqueue(genericArgument);
-            }
-
-            yield return actual;
-        }
     }
 
     private IPluginDataStore CreateDataStore(PluginManifest manifest)

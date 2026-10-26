@@ -1,0 +1,97 @@
+<mxfile host="Electron" agent="Codex">
+  <diagram id="clubgear-core-plugin-license-boundary" name="Core Plugin License Boundary">
+    <mxGraphModel dx="2672" dy="669" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=28;fontStyle=1;fontColor=#172B4D;" value="ClubGear Lizenz- und Plugin-Architektur" vertex="1">
+          <mxGeometry height="50" width="880" x="360" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=15;fontColor=#44546F;" value="Der Kern bleibt freie Software unter AGPLv3. Plugins werden ueber stabile Contracts angebunden und koennen eigene Lizenzen verwenden." vertex="1">
+          <mxGeometry height="40" width="1040" x="280" y="82" as="geometry" />
+        </mxCell>
+        <mxCell id="core" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#E3FCEF;strokeColor=#36B37E;strokeWidth=3;fontSize=18;fontStyle=1;fontColor=#064E3B;spacing=14;" value="ClubGear Kern&#xa;Mitgliederverwaltung&#xa;&#xa;Lizenz: AGPLv3&#xa;&#xa;Mitglieder, Vereine, Rollen, Rechte, Audit, Basis-UI, Core-API" vertex="1">
+          <mxGeometry height="220" width="430" x="585" y="365" as="geometry" />
+        </mxCell>
+        <mxCell id="boundary" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFF7D6;strokeColor=#FFAB00;strokeWidth=2;dashed=1;dashPattern=8 4;fontSize=15;fontStyle=1;fontColor=#5F3811;spacing=10;" value="Plugin Boundary&#xa;ClubGear.Plugin.Contracts + Bridges/Facades&#xa;keine direkten Zugriffe auf Core-Interna" vertex="1">
+          <mxGeometry height="340" width="540" x="530" y="305" as="geometry" />
+        </mxCell>
+        <mxCell id="identityGroup" parent="1" style="swimlane;html=1;rounded=1;arcSize=8;startSize=38;fillColor=#EAE6FF;strokeColor=#6554C0;fontSize=15;fontStyle=1;fontColor=#403294;" value="Identitaets-Plugins&#xa;Lizenz: Open Source oder kommerziell" vertex="1">
+          <mxGeometry height="250" width="330" x="70" y="175" as="geometry" />
+        </mxCell>
+        <mxCell id="keycloak" parent="identityGroup" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#6554C0;fontSize=14;fontColor=#172B4D;" value="Keycloak Plugin&#xa;OIDC / SAML" vertex="1">
+          <mxGeometry height="48" width="280" x="25" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="azuread" parent="identityGroup" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#6554C0;fontSize=14;fontColor=#172B4D;" value="Azure AD / Entra ID Plugin&#xa;OIDC / OAuth2" vertex="1">
+          <mxGeometry height="48" width="280" x="25" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="ldap" parent="identityGroup" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#6554C0;fontSize=14;fontColor=#172B4D;" value="LDAP / Active Directory Plugin&#xa;Directory Sync" vertex="1">
+          <mxGeometry height="48" width="280" x="25" y="180" as="geometry" />
+        </mxCell>
+        <mxCell id="operationsGroup" parent="1" style="swimlane;html=1;rounded=1;arcSize=8;startSize=44;fillColor=#DEEBFF;strokeColor=#0052CC;fontSize=15;fontStyle=1;fontColor=#0747A6;" value="Fach-Plugins&#xa;Lizenz je Plugin: AGPL, MIT, proprietaer oder kommerziell" vertex="1">
+          <mxGeometry height="380" width="500" x="1180" y="165" as="geometry" />
+        </mxCell>
+        <mxCell id="gps" parent="operationsGroup" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#0052CC;fontSize=14;fontColor=#172B4D;" value="GPS-Tracker Plugin&#xa;Touren, Live-Tracking, Geofencing" vertex="1">
+          <mxGeometry height="54" width="280" x="30" y="65" as="geometry" />
+        </mxCell>
+        <mxCell id="finance" parent="operationsGroup" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#0052CC;fontSize=14;fontColor=#172B4D;" value="Finanzen Plugin&#xa;Beitraege, Rechnungen, Buchhaltung" vertex="1">
+          <mxGeometry height="54" width="280" x="30" y="132" as="geometry" />
+        </mxCell>
+        <mxCell id="newsletter" parent="operationsGroup" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#0052CC;fontSize=14;fontColor=#172B4D;" value="Newsletter Plugin&#xa;Mailinglisten, Kampagnen, Opt-in" vertex="1">
+          <mxGeometry height="54" width="280" x="30" y="199" as="geometry" />
+        </mxCell>
+        <mxCell id="cloud" parent="operationsGroup" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#0052CC;fontSize=14;fontColor=#172B4D;" value="Cloud Plugin&#xa;Dateien, Backups, Sync" vertex="1">
+          <mxGeometry height="54" width="280" x="30" y="266" as="geometry" />
+        </mxCell>
+        <mxCell id="marketplace" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F4F5F7;strokeColor=#6B778C;strokeWidth=2;fontSize=15;fontColor=#172B4D;spacing=12;" value="Plugin Distribution&#xa;Marketplace / ZIP / private Pakete&#xa;&#xa;Integritaet, Signatur, Manifest, Contract-Version" vertex="1">
+          <mxGeometry height="110" width="400" x="600" y="770" as="geometry" />
+        </mxCell>
+        <mxCell id="commercialNote" parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=18;fillColor=#FFFAE6;strokeColor=#FFAB00;fontSize=14;fontColor=#5F3811;spacing=12;" value="Wichtig: Die Plugin-Lizenz ist getrennt vom Core, solange das Plugin nur die freigegebenen Contracts nutzt und keine Core-Implementierungen referenziert." vertex="1">
+          <mxGeometry height="130" width="430" x="-220" y="600" as="geometry" />
+        </mxCell>
+        <mxCell id="forbiddenNote" parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=18;fillColor=#FFEBE6;strokeColor=#DE350B;fontSize=14;fontColor=#641E16;spacing=12;" value="Nicht erlaubt: direkter Zugriff auf Core-Services, Datenmodell, Controller oder Datenbank. Alle Interaktionen laufen ueber Bridge-APIs." vertex="1">
+          <mxGeometry height="130" width="430" x="1370" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="arrowIdentity" edge="1" parent="1" source="identityGroup" style="endArrow=block;html=1;rounded=0;strokeColor=#6554C0;strokeWidth=2;fontSize=12;fontColor=#403294;edgeStyle=orthogonalEdgeStyle;" target="boundary" value="Authentifizierung, Rollen-Mapping, Claims">
+          <mxGeometry relative="1" x="-0.5738" y="59" as="geometry">
+            <mxPoint x="-4" y="-20" as="offset" />
+            <mxPoint x="400" y="335" as="sourcePoint" />
+            <mxPoint x="530" y="385" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrowOperations" edge="1" parent="1" source="operationsGroup" style="endArrow=block;html=1;rounded=0;strokeColor=#0052CC;strokeWidth=2;fontSize=12;fontColor=#0747A6;edgeStyle=orthogonalEdgeStyle;" target="boundary" value="Features, Datenbeitraege, UI-Contributions">
+          <mxGeometry relative="1" x="-0.6271" y="-68" as="geometry">
+            <mxPoint x="3" y="-20" as="offset" />
+            <Array as="points">
+              <mxPoint x="1125" y="290" />
+              <mxPoint x="1125" y="475" />
+            </Array>
+            <mxPoint x="1180" y="390" as="sourcePoint" />
+            <mxPoint x="1070" y="430" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrowMarketplaceIdentity" edge="1" parent="1" source="marketplace" style="endArrow=block;html=1;rounded=0;strokeColor=#6B778C;strokeWidth=2;fontSize=12;fontColor=#42526E;dashed=1;edgeStyle=orthogonalEdgeStyle;" target="identityGroup" value="installiert / aktualisiert">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="800" y="835" />
+              <mxPoint x="235" y="835" />
+              <mxPoint x="235" y="425" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrowMarketplaceOps" edge="1" parent="1" source="marketplace" style="endArrow=block;html=1;rounded=0;strokeColor=#6B778C;strokeWidth=2;fontSize=12;fontColor=#42526E;dashed=1;edgeStyle=orthogonalEdgeStyle;" target="operationsGroup" value="installiert / aktualisiert">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="800" y="835" />
+              <mxPoint x="1350" y="835" />
+              <mxPoint x="1350" y="545" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="licenseLegend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#C1C7D0;fontSize=13;fontColor=#172B4D;spacing=8;" value="Legende: Gruen = AGPLv3-Kern | Gelb = verpflichtende Plugin-Grenze | Blau/Violett = austauschbare Plugins mit eigener Lizenz" vertex="1">
+          <mxGeometry height="44" width="660" x="470" y="910" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

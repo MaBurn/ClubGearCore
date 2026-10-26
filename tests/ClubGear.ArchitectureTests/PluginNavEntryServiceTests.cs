@@ -23,7 +23,7 @@ public sealed class PluginNavEntryServiceTests
             // We register a no-op module so the registry accepts the runtime.
             // The nav-entry service only calls GetRegisteredPlugins(), which
             // returns the runtime objects directly.
-            registry.Register(rt, new NoOpPluginModule(rt.ModuleId), AssemblyLoadContext.Default);
+            registry.RegisterAsync(rt, new NoOpPluginModule(rt.ModuleId), AssemblyLoadContext.Default).GetAwaiter().GetResult();
         }
 
         return registry;

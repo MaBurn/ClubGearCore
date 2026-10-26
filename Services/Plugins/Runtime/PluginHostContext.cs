@@ -85,7 +85,8 @@ public sealed class PluginHostContext : IPluginHostContext
                 member.MemberNumber ?? string.Empty,
                 member.FullName,
                 member.IsActive,
-                member.Email);
+                member.Email,
+                member.MembershipTypeId);
         }
 
         private static PluginMemberDetail MapDetail(Member member)
@@ -98,7 +99,11 @@ public sealed class PluginHostContext : IPluginHostContext
                 member.LastName,
                 member.Email,
                 member.PhoneNumber,
-                member.IsActive);
+                member.IsActive,
+                member.MembershipTypeId,
+                member.MembershipType?.Name,
+                member.MembershipType?.FeeAmount,
+                member.MembershipType?.BillingInterval);
         }
     }
 

@@ -17,11 +17,12 @@ public sealed class ServiceBookPluginTests
         module.RegisterContributions(sink);
 
         Assert.Equal("clubgear.plugin.servicebook", module.Manifest.ModuleId);
-        Assert.Equal(new Version(1, 0, 0), module.Manifest.PluginVersion);
+        Assert.Equal(new Version(1, 0, 4), module.Manifest.PluginVersion);
         Assert.Contains("clubgear.plugin.servicebook.member.write", module.Manifest.Permissions);
         Assert.Contains("member.edit", module.Manifest.ExtensionPoints);
-        Assert.Contains("selfservice.profile", module.Manifest.ExtensionPoints);
+        Assert.DoesNotContain("selfservice.profile", module.Manifest.ExtensionPoints);
         Assert.Equal(3, sink.MemberProviders.Count);
+        Assert.Empty(sink.SelfServiceProfileProviders);
         Assert.Contains(sink.MemberProviders, provider => provider.SlotKind == PluginMemberSlotKind.EditTab);
         Assert.Contains(sink.MemberProviders, provider => provider.SlotKind == PluginMemberSlotKind.Action);
         Assert.Contains(sink.MemberProviders, provider => provider.SlotKind == PluginMemberSlotKind.DetailCard);
@@ -83,6 +84,8 @@ public sealed class ServiceBookPluginTests
         Assert.Contains("data-servicebook-root", tab.Content, StringComparison.Ordinal);
         Assert.Contains("Inspektion", tab.Content, StringComparison.Ordinal);
         Assert.Contains("data-carinfo-vehicles", tab.Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-plugin-member-action", tab.Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("display: none", tab.Content, StringComparison.OrdinalIgnoreCase);
 
         var deleteResult = await provider.ExecuteAsync(
             new PluginMemberActionRequest(
@@ -128,11 +131,9 @@ public sealed class ServiceBookPluginTests
     public void CarInfo_ExposesMachineReadableVehicleData_Island()
     {
         var source = File.ReadAllText(GetProjectFilePath("plugins", "CarInfo", "CarInfoProviders.cgcs"));
-        var manifest = File.ReadAllText(GetProjectFilePath("plugins", "CarInfo", "plugin.json"));
 
         Assert.Contains("data-carinfo-vehicles", source, StringComparison.Ordinal);
         Assert.Contains("SerializeVehiclesForHtmlAttribute", source, StringComparison.Ordinal);
-        Assert.Contains("\"version\": \"1.0.5\"", manifest, StringComparison.Ordinal);
     }
 
     private static Dictionary<string, string> BuildArguments(string title, string partsJson)
@@ -188,6 +189,7 @@ public sealed class ServiceBookPluginTests
     private sealed class RecordingContributionSink : IPluginContributionSink
     {
         public List<PluginMemberProviderContribution> MemberProviders { get; } = [];
+        public List<PluginSelfServiceProfileProviderContribution> SelfServiceProfileProviders { get; } = [];
 
         public void AddRoute(PluginRouteContribution contribution) { }
 
@@ -195,6 +197,9 @@ public sealed class ServiceBookPluginTests
 
         public void AddMemberProvider(PluginMemberProviderContribution contribution)
             => MemberProviders.Add(contribution);
+
+        public void AddSelfServiceProfileSection(PluginSelfServiceProfileProviderContribution contribution)
+            => SelfServiceProfileProviders.Add(contribution);
 
         public void AddBackgroundJob(PluginBackgroundJobContribution contribution) { }
     }
@@ -248,7 +253,7 @@ public sealed class ServiceBookPluginTests
                 "Proprietary",
                 ">=1.0.0",
                 ["clubgear.plugin.servicebook.member.write"],
-                ["member.detail", "member.edit", "member.action", "selfservice.profile"]);
+                ["member.detail", "member.edit", "member.action"]);
     }
 
     private sealed class NoOpMemberReader : IPluginMemberReader

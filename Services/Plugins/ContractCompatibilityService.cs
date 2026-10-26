@@ -21,6 +21,13 @@ public sealed class ContractCompatibilityService : IContractCompatibilityService
                 $"Contract version {pluginContractVersion} is below minimum supported version {ContractVersion.MinimumSupported}.");
         }
 
+        if (pluginContractVersion > ContractVersion.Current)
+        {
+            return new ContractCompatibilityResult(
+                false,
+                $"Contract version {pluginContractVersion} requires a newer host contract than {ContractVersion.Current}.");
+        }
+
         return new ContractCompatibilityResult(true);
     }
 }

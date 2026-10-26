@@ -63,7 +63,7 @@ public sealed class RuntimeLoadedPluginModuleA : IPluginModule
             "Plugin Tests",
             "Proprietary",
             typeof(RuntimeLoadedPluginModuleA).FullName!,
-            ">=1.0.0",
+            ">=1.13.0",
             ["members.read", "members.manage"],
             ["member.detail", "member.edit", "member.badge", "member.action"]);
     }
@@ -73,12 +73,12 @@ public sealed class RuntimeLoadedPluginModuleA : IPluginModule
     public void RegisterContributions(IPluginContributionSink sink)
     {
         sink.AddRoute(new PluginRouteContribution("/declared/runtime-a", "members.read"));
-        sink.AddService(new PluginServiceContribution("members.service", typeof(RuntimeLoadedPluginModuleA).FullName!));
+        sink.AddService(new PluginServiceContribution(PluginCapabilityKeys.StorageBlob, typeof(RuntimeStorageProviderA).FullName!));
         sink.AddMemberProvider(new PluginMemberProviderContribution(PluginMemberSlotKind.DetailCard, typeof(RuntimeLoadedDetailCardProviderA).FullName!, 10));
         sink.AddMemberProvider(new PluginMemberProviderContribution(PluginMemberSlotKind.EditTab, typeof(RuntimeLoadedEditTabProviderA).FullName!, 20));
         sink.AddMemberProvider(new PluginMemberProviderContribution(PluginMemberSlotKind.StatusBadge, typeof(RuntimeLoadedStatusBadgeProviderA).FullName!, 0));
         sink.AddMemberProvider(new PluginMemberProviderContribution(PluginMemberSlotKind.Action, typeof(RuntimeLoadedActionProviderA).FullName!, 30));
-        sink.AddBackgroundJob(new PluginBackgroundJobContribution("members.sync", typeof(RuntimeLoadedPluginModuleA).FullName!));
+        sink.AddBackgroundJob(new PluginBackgroundJobContribution("members.sync", typeof(RuntimeLoadedBackgroundJobA).FullName!));
     }
 }
 
@@ -93,7 +93,7 @@ public sealed class RuntimeLoadedPluginModuleB : IPluginModule
             "Plugin Tests",
             "Proprietary",
             typeof(RuntimeLoadedPluginModuleB).FullName!,
-            ">=1.0.0",
+            ">=1.13.0",
             ["members.read", "members.manage"],
             ["member.detail", "member.edit", "member.badge", "member.action"]);
     }
@@ -103,12 +103,12 @@ public sealed class RuntimeLoadedPluginModuleB : IPluginModule
     public void RegisterContributions(IPluginContributionSink sink)
     {
         sink.AddRoute(new PluginRouteContribution("/declared/runtime-b", "members.read"));
-        sink.AddService(new PluginServiceContribution("members.service.b", typeof(RuntimeLoadedPluginModuleB).FullName!));
+        sink.AddService(new PluginServiceContribution(PluginCapabilityKeys.DocumentStore, typeof(RuntimeStorageProviderB).FullName!));
         sink.AddMemberProvider(new PluginMemberProviderContribution(PluginMemberSlotKind.DetailCard, typeof(RuntimeLoadedDetailCardProviderB).FullName!, 20));
         sink.AddMemberProvider(new PluginMemberProviderContribution(PluginMemberSlotKind.EditTab, typeof(RuntimeLoadedEditTabProviderB).FullName!, 30));
         sink.AddMemberProvider(new PluginMemberProviderContribution(PluginMemberSlotKind.StatusBadge, typeof(RuntimeLoadedStatusBadgeProviderB).FullName!, 10));
         sink.AddMemberProvider(new PluginMemberProviderContribution(PluginMemberSlotKind.Action, typeof(RuntimeLoadedActionProviderB).FullName!, 40));
-        sink.AddBackgroundJob(new PluginBackgroundJobContribution("members.sync.b", typeof(RuntimeLoadedPluginModuleB).FullName!));
+        sink.AddBackgroundJob(new PluginBackgroundJobContribution("members.sync.b", typeof(RuntimeLoadedBackgroundJobB).FullName!));
     }
 }
 
@@ -123,7 +123,7 @@ public sealed class RuntimeAdminPluginModule : IPluginModule
             "Plugin Tests",
             "Proprietary",
             typeof(RuntimeAdminPluginModule).FullName!,
-            ">=1.0.0",
+            ">=1.13.0",
             ["members.read", "members.manage"],
             ["admin.functions"]);
     }
@@ -138,6 +138,15 @@ public sealed class RuntimeAdminPluginModule : IPluginModule
 
 public sealed class RuntimeAdminPanelProvider : IAdminFunctionPanelProvider
 {
+    // CORE-18. The canonical constructor: the host builds every contribution as
+    // T(IPluginHostContext). There is no parameterless one any more.
+    public RuntimeAdminPanelProvider(IPluginHostContext hostContext)
+    {
+        HostContext = hostContext;
+    }
+
+    public IPluginHostContext HostContext { get; }
+
     public Task<IReadOnlyList<PluginAdminPanel>> GetPanelsAsync(
         IPluginHostContext hostContext,
         CancellationToken cancellationToken = default)
@@ -176,6 +185,15 @@ public sealed class RuntimeAdminPanelProvider : IAdminFunctionPanelProvider
 
 public sealed class RuntimeLoadedDetailCardProviderA : IMemberDetailCardProvider
 {
+    // CORE-18. The canonical constructor: the host builds every contribution as
+    // T(IPluginHostContext). There is no parameterless one any more.
+    public RuntimeLoadedDetailCardProviderA(IPluginHostContext hostContext)
+    {
+        HostContext = hostContext;
+    }
+
+    public IPluginHostContext HostContext { get; }
+
     public Task<IReadOnlyList<MemberDetailCardSlot>> GetCardsAsync(
         PluginMemberDetail member,
         IPluginHostContext hostContext,
@@ -185,6 +203,15 @@ public sealed class RuntimeLoadedDetailCardProviderA : IMemberDetailCardProvider
 
 public sealed class RuntimeLoadedEditTabProviderA : IMemberEditTabProvider
 {
+    // CORE-18. The canonical constructor: the host builds every contribution as
+    // T(IPluginHostContext). There is no parameterless one any more.
+    public RuntimeLoadedEditTabProviderA(IPluginHostContext hostContext)
+    {
+        HostContext = hostContext;
+    }
+
+    public IPluginHostContext HostContext { get; }
+
     public Task<IReadOnlyList<MemberEditTabSlot>> GetTabsAsync(
         PluginMemberDetail member,
         IPluginHostContext hostContext,
@@ -194,6 +221,15 @@ public sealed class RuntimeLoadedEditTabProviderA : IMemberEditTabProvider
 
 public sealed class RuntimeLoadedStatusBadgeProviderA : IMemberStatusBadgeProvider
 {
+    // CORE-18. The canonical constructor: the host builds every contribution as
+    // T(IPluginHostContext). There is no parameterless one any more.
+    public RuntimeLoadedStatusBadgeProviderA(IPluginHostContext hostContext)
+    {
+        HostContext = hostContext;
+    }
+
+    public IPluginHostContext HostContext { get; }
+
     public Task<IReadOnlyList<MemberStatusBadgeSlot>> GetBadgesAsync(
         PluginMemberDetail member,
         IPluginHostContext hostContext,
@@ -203,6 +239,15 @@ public sealed class RuntimeLoadedStatusBadgeProviderA : IMemberStatusBadgeProvid
 
 public sealed class RuntimeLoadedActionProviderA : IMemberActionProvider
 {
+    // CORE-18. The canonical constructor: the host builds every contribution as
+    // T(IPluginHostContext). There is no parameterless one any more.
+    public RuntimeLoadedActionProviderA(IPluginHostContext hostContext)
+    {
+        HostContext = hostContext;
+    }
+
+    public IPluginHostContext HostContext { get; }
+
     public Task<IReadOnlyList<MemberActionSlot>> GetActionsAsync(
         PluginMemberDetail member,
         IPluginHostContext hostContext,
@@ -219,6 +264,15 @@ public sealed class RuntimeLoadedActionProviderA : IMemberActionProvider
 
 public sealed class RuntimeLoadedDetailCardProviderB : IMemberDetailCardProvider
 {
+    // CORE-18. The canonical constructor: the host builds every contribution as
+    // T(IPluginHostContext). There is no parameterless one any more.
+    public RuntimeLoadedDetailCardProviderB(IPluginHostContext hostContext)
+    {
+        HostContext = hostContext;
+    }
+
+    public IPluginHostContext HostContext { get; }
+
     public Task<IReadOnlyList<MemberDetailCardSlot>> GetCardsAsync(
         PluginMemberDetail member,
         IPluginHostContext hostContext,
@@ -228,6 +282,15 @@ public sealed class RuntimeLoadedDetailCardProviderB : IMemberDetailCardProvider
 
 public sealed class RuntimeLoadedEditTabProviderB : IMemberEditTabProvider
 {
+    // CORE-18. The canonical constructor: the host builds every contribution as
+    // T(IPluginHostContext). There is no parameterless one any more.
+    public RuntimeLoadedEditTabProviderB(IPluginHostContext hostContext)
+    {
+        HostContext = hostContext;
+    }
+
+    public IPluginHostContext HostContext { get; }
+
     public Task<IReadOnlyList<MemberEditTabSlot>> GetTabsAsync(
         PluginMemberDetail member,
         IPluginHostContext hostContext,
@@ -237,6 +300,15 @@ public sealed class RuntimeLoadedEditTabProviderB : IMemberEditTabProvider
 
 public sealed class RuntimeLoadedStatusBadgeProviderB : IMemberStatusBadgeProvider
 {
+    // CORE-18. The canonical constructor: the host builds every contribution as
+    // T(IPluginHostContext). There is no parameterless one any more.
+    public RuntimeLoadedStatusBadgeProviderB(IPluginHostContext hostContext)
+    {
+        HostContext = hostContext;
+    }
+
+    public IPluginHostContext HostContext { get; }
+
     public Task<IReadOnlyList<MemberStatusBadgeSlot>> GetBadgesAsync(
         PluginMemberDetail member,
         IPluginHostContext hostContext,
@@ -246,6 +318,15 @@ public sealed class RuntimeLoadedStatusBadgeProviderB : IMemberStatusBadgeProvid
 
 public sealed class RuntimeLoadedActionProviderB : IMemberActionProvider
 {
+    // CORE-18. The canonical constructor: the host builds every contribution as
+    // T(IPluginHostContext). There is no parameterless one any more.
+    public RuntimeLoadedActionProviderB(IPluginHostContext hostContext)
+    {
+        HostContext = hostContext;
+    }
+
+    public IPluginHostContext HostContext { get; }
+
     public Task<IReadOnlyList<MemberActionSlot>> GetActionsAsync(
         PluginMemberDetail member,
         IPluginHostContext hostContext,
@@ -271,7 +352,7 @@ public sealed class MigratingPluginModule : IPluginModule
             "Plugin Tests",
             "Proprietary",
             typeof(MigratingPluginModule).FullName!,
-            ">=1.0.0",
+            ">=1.13.0",
             ["members.read"],
             ["member.detail"]);
     }
@@ -298,7 +379,7 @@ public sealed class BadMigratingPluginModule : IPluginModule
             "Plugin Tests",
             "Proprietary",
             typeof(BadMigratingPluginModule).FullName!,
-            ">=1.0.0",
+            ">=1.13.0",
             ["members.read"],
             ["member.detail"]);
     }
@@ -339,8 +420,17 @@ public sealed class InvalidPrefixMigration : IPluginMigration
             cancellationToken: cancellationToken);
 }
 
-internal sealed class RuntimeLoadedBackgroundJobA : IPluginBackgroundJob
+public sealed class RuntimeLoadedBackgroundJobA : IPluginBackgroundJob
 {
+    // CORE-18. The canonical constructor: the host builds every contribution as
+    // T(IPluginHostContext). There is no parameterless one any more.
+    public RuntimeLoadedBackgroundJobA(IPluginHostContext hostContext)
+    {
+        HostContext = hostContext;
+    }
+
+    public IPluginHostContext HostContext { get; }
+
     public Task ExecuteAsync(IPluginHostContext hostContext, CancellationToken cancellationToken)
         => Task.CompletedTask;
 }
@@ -356,7 +446,7 @@ public sealed class FixtureSelfServiceProviderModule : IPluginModule
             "Plugin Tests",
             "Proprietary",
             typeof(FixtureSelfServiceProviderModule).FullName!,
-            ">=1.0.0",
+            ">=1.13.0",
             ["members.read"],
             ["member.selfservice"]);
     }
@@ -371,6 +461,15 @@ public sealed class FixtureSelfServiceProviderModule : IPluginModule
 
 public sealed class FixtureSelfServiceProvider : ISelfServiceProfileSectionProvider
 {
+    // CORE-18. The canonical constructor: the host builds every contribution as
+    // T(IPluginHostContext). There is no parameterless one any more.
+    public FixtureSelfServiceProvider(IPluginHostContext hostContext)
+    {
+        HostContext = hostContext;
+    }
+
+    public IPluginHostContext HostContext { get; }
+
     public Task<SelfServiceProfileSection?> GetSectionAsync(
         PluginMemberDetail member,
         IPluginHostContext hostContext,
@@ -387,6 +486,15 @@ public sealed class FixtureSelfServiceProvider : ISelfServiceProfileSectionProvi
 
 public sealed class PersistedNotesDetailCardProvider : IMemberDetailCardProvider
 {
+    // CORE-18. The canonical constructor: the host builds every contribution as
+    // T(IPluginHostContext). There is no parameterless one any more.
+    public PersistedNotesDetailCardProvider(IPluginHostContext hostContext)
+    {
+        HostContext = hostContext;
+    }
+
+    public IPluginHostContext HostContext { get; }
+
     public async Task<IReadOnlyList<MemberDetailCardSlot>> GetCardsAsync(
         PluginMemberDetail member,
         IPluginHostContext hostContext,
@@ -408,4 +516,72 @@ public sealed class PersistedNotesDetailCardProvider : IMemberDetailCardProvider
 
         return [new MemberDetailCardSlot("persisted-note", "Plugin-Notiz", rows[0].Values["Note"] ?? string.Empty)];
     }
+}
+
+/// <summary>
+/// CORE-18. A module whose manifest declares the previous contract floor. It is refused at load
+/// time with a version message, which is the legible form the 1.13.0 break is supposed to take.
+/// </summary>
+public sealed class BelowContractFloorPluginModule : IPluginModule
+{
+    public BelowContractFloorPluginModule()
+    {
+        Manifest = new PluginManifest(
+            "plugin.fixture.belowfloor",
+            "Below Floor Module",
+            new Version(1, 0, 0),
+            "Plugin Tests",
+            "Proprietary",
+            typeof(BelowContractFloorPluginModule).FullName!,
+            ">=1.12.0",
+            ["members.read"],
+            ["member.detail"]);
+    }
+
+    public PluginManifest Manifest { get; }
+
+    public void RegisterContributions(IPluginContributionSink sink)
+    {
+        sink.AddSelfServiceProfileSection(
+            new PluginSelfServiceProfileProviderContribution(typeof(FixtureSelfServiceProvider).FullName!, 0));
+    }
+}
+
+/// <summary>
+/// CORE-18. Modules A and B used to declare *themselves* as their service and background-job
+/// contribution type. That was always a placeholder; now it is a load-time rejection, because a
+/// module entry point keeps its parameterless constructor while a contribution must declare
+/// <c>T(IPluginHostContext)</c>. These are the real contribution types.
+/// </summary>
+public sealed class RuntimeStorageProviderA
+{
+    public RuntimeStorageProviderA(IPluginHostContext hostContext)
+    {
+        HostContext = hostContext;
+    }
+
+    public IPluginHostContext HostContext { get; }
+}
+
+public sealed class RuntimeStorageProviderB
+{
+    public RuntimeStorageProviderB(IPluginHostContext hostContext)
+    {
+        HostContext = hostContext;
+    }
+
+    public IPluginHostContext HostContext { get; }
+}
+
+public sealed class RuntimeLoadedBackgroundJobB : IPluginBackgroundJob
+{
+    public RuntimeLoadedBackgroundJobB(IPluginHostContext hostContext)
+    {
+        HostContext = hostContext;
+    }
+
+    public IPluginHostContext HostContext { get; }
+
+    public Task ExecuteAsync(IPluginHostContext hostContext, CancellationToken cancellationToken)
+        => Task.CompletedTask;
 }

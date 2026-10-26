@@ -30,7 +30,23 @@ public sealed class PluginLoaderIdentityProviderCollectionTests
         var runtime = loadResult.LoadedPlugin!.Runtime;
         Assert.Equal(1, runtime.IdentityProviders.Count);
         Assert.Equal("my.idp", runtime.IdentityProviders[0].ProviderKey);
-        Assert.Equal("MyIdentityProviderPlugin", runtime.IdentityProviders[0].ProviderType);
+        Assert.Equal(typeof(ContributedIdentityProvider).FullName, runtime.IdentityProviders[0].ProviderType);
+    }
+
+    /// <summary>
+    /// An identity provider that lives in the packaged plugin assembly. Since CORE-16 the loader
+    /// resolves every declared contribution type from the module's own assembly, so a placeholder
+    /// type name would be a load-time rejection.
+    /// </summary>
+    public sealed class ContributedIdentityProvider
+    {
+        // CORE-18. Contributions are host-constructed as T(IPluginHostContext).
+        public ContributedIdentityProvider(IPluginHostContext hostContext)
+        {
+            HostContext = hostContext;
+        }
+
+        public IPluginHostContext HostContext { get; }
     }
 
     /// <summary>
@@ -47,7 +63,7 @@ public sealed class PluginLoaderIdentityProviderCollectionTests
                 "Tests",
                 "MIT",
                 typeof(IdentityProviderContributingPluginModule).FullName!,
-                ">=1.0.0",
+                ">=1.13.0",
                 ["members.read"],
                 ["identity.provider"]);
         }
@@ -56,7 +72,9 @@ public sealed class PluginLoaderIdentityProviderCollectionTests
 
         public void RegisterContributions(IPluginContributionSink sink)
         {
-            sink.AddIdentityProvider(new PluginIdentityProviderContribution("my.idp", "MyIdentityProviderPlugin"));
+            sink.AddIdentityProvider(new PluginIdentityProviderContribution(
+                "my.idp",
+                typeof(ContributedIdentityProvider).FullName!));
         }
     }
 }

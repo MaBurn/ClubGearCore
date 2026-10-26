@@ -10,7 +10,8 @@ public static class PermissionKeys
         MembersManage,
         MembersTypesManage,
         SelfServiceAccess,
-        SelfServiceProfileEdit
+        SelfServiceProfileEdit,
+        ApiKeysManage
     };
 
     public const string Wildcard = "*";
@@ -23,6 +24,9 @@ public static class PermissionKeys
 
     public const string SelfServiceAccess = "selfservice.access";
     public const string SelfServiceProfileEdit = "selfservice.profile.edit";
+
+    /// <summary>CORE-09. Issuing and revoking API keys is an administrative act of its own.</summary>
+    public const string ApiKeysManage = "apikeys.manage";
 
     public const string PluginCategory = "Plugins";
 

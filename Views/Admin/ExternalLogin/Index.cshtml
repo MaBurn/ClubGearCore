@@ -21,13 +21,13 @@
         else
         {
             <div class="table-responsive">
-                <table class="table table-bordered table-sm align-middle">
+                <table class="table table-bordered align-middle external-login-table">
                     <thead class="table-light">
                         <tr>
                             <th scope="col">Provider</th>
                             <th scope="col">Schluessel</th>
                             <th scope="col">Status</th>
-                            <th scope="col">Aktionen</th>
+                            <th scope="col" class="external-login-table__actions-head">Aktionen</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -37,39 +37,61 @@
                                 <td>@provider.DisplayName</td>
                                 <td><code>@provider.ProviderKey</code></td>
                                 <td>
-                                    @if (provider.IsEnabled)
+                                    @if (!provider.IsAvailable)
                                     {
-                                        <span class="badge bg-success">Aktiviert</span>
+                                        <span class="badge bg-danger"><i class="bi bi-exclamation-triangle me-1"></i>Nicht verfuegbar</span>
+                                    }
+                                    else if (provider.IsEnabled)
+                                    {
+                                        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Aktiviert</span>
                                     }
                                     else
                                     {
                                         <span class="badge bg-secondary">Deaktiviert</span>
                                     }
                                 </td>
-                                <td class="d-flex gap-2 flex-wrap">
-                                    <a href="@Url.Action("Configure", "ExternalLoginAdmin", new { provider = provider.ProviderKey })"
-                                       class="btn btn-sm btn-outline-primary">
-                                        Konfigurieren
-                                    </a>
+                                <td class="external-login-table__actions">
+                                    <div class="external-login-actions-row">
+                                        <a href="@Url.Action("Configure", "ExternalLoginAdmin", new { provider = provider.ProviderKey })"
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-gear me-1"></i>Konfigurieren
+                                        </a>
+
+                                        @if (provider.IsAvailable)
+                                        {
+                                            <form method="post"
+                                                  asp-action="Activate"
+                                                  asp-controller="ExternalLoginAdmin"
+                                                  asp-route-provider="@provider.ProviderKey"
+                                                  asp-route-enabled="@(!provider.IsEnabled)">
+                                                @Html.AntiForgeryToken()
+                                                @if (provider.IsEnabled)
+                                                {
+                                                    <button type="submit" class="btn btn-sm btn-outline-warning">
+                                                        <i class="bi bi-pause-circle me-1"></i>Deaktivieren
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <button type="submit" class="btn btn-sm btn-outline-success">
+                                                        <i class="bi bi-play-circle me-1"></i>Aktivieren
+                                                    </button>
+                                                }
+                                            </form>
+                                        }
+                                    </div>
 
                                     <form method="post"
-                                          asp-action="Activate"
+                                          asp-action="Test"
                                           asp-controller="ExternalLoginAdmin"
                                           asp-route-provider="@provider.ProviderKey"
-                                          asp-route-enabled="@(!provider.IsEnabled)">
+                                          class="js-external-login-test external-login-test-row">
                                         @Html.AntiForgeryToken()
-                                        @if (provider.IsEnabled)
-                                        {
-                                            <button type="submit" class="btn btn-sm btn-outline-warning">
-                                                Deaktivieren
-                                            </button>
-                                        }
-                                        else
-                                        {
-                                            <button type="submit" class="btn btn-sm btn-outline-success">
-                                                Aktivieren
-                                            </button>
-                                        }
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary"
+                                                disabled="@(!provider.IsAvailable)">
+                                            <i class="bi bi-plug me-1"></i>Verbindung testen
+                                        </button>
+                                        <span class="small text-muted" role="status" aria-live="polite"></span>
                                     </form>
                                 </td>
                             </tr>
@@ -80,3 +102,33 @@
         }
     </section>
 </div>
+
+@section Scripts {
+    <script>
+        document.querySelectorAll('.js-external-login-test').forEach(form => {
+            form.addEventListener('submit', async event => {
+                event.preventDefault();
+                const button = form.querySelector('button[type="submit"]');
+                const status = form.querySelector('[role="status"]');
+                button.disabled = true;
+                status.textContent = 'Pruefung laeuft ...';
+                status.className = 'small text-muted';
+
+                try {
+                    const response = await fetch(form.action, {
+                        method: 'POST',
+                        body: new FormData(form)
+                    });
+                    const result = await response.json();
+                    status.textContent = result.message || (result.success ? 'Verbindung erfolgreich.' : 'Verbindung fehlgeschlagen.');
+                    status.className = `small ${result.success ? 'text-success' : 'text-danger'}`;
+                } catch {
+                    status.textContent = 'Verbindungstest fehlgeschlagen.';
+                    status.className = 'small text-danger';
+                } finally {
+                    button.disabled = false;
+                }
+            });
+        });
+    </script>
+}

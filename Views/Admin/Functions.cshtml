@@ -160,7 +160,7 @@
                                                     <td>@record.Recipient</td>
                                                     <td>@record.Subject</td>
                                                     <td>
-                                                        <span class="badge @(record.Status == "Sent" ? "bg-success" : "bg-danger")">@record.Status</span>
+                                                        @Html.Raw(ClubGear.Services.Core.NotificationStatusBadge.Html(record.Status))
                                                     </td>
                                                 </tr>
                                             }
@@ -239,18 +239,15 @@
                 </div>
             </div>
 
-            @if (Model.CanManageMembershipTypes)
+            @if (Model.CanManageMembershipTypes && Model.MembershipTypes is not null)
             {
+                ViewData["ReturnUrl"] = Url.Action("Functions", "Admin", new { tab = "membershiptypes" });
                 <div class="tab-pane fade @(activeTab == "membershiptypes" ? "show active" : string.Empty)" id="membershiptypes" role="tabpanel">
-                    <div class="card border-primary">
-                        <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
-                            <div>
-                                <h2 class="h5 mb-1">Mitgliedsarten &amp; Metadatendefinitionen</h2>
-                                <p class="text-muted mb-0">Mitgliedsarten (z.B. Verein, Firma, Familie) anlegen, deren Rabatt festlegen und pro Typ eigene Zusatzfelder definieren.</p>
-                            </div>
-                            <a class="btn btn-primary" asp-controller="MembershipTypes" asp-action="Index">Mitgliedsarten verwalten</a>
-                        </div>
+                    <div class="mb-3">
+                        <h2 class="h5 mb-1">Mitgliedsarten &amp; Metadatendefinitionen</h2>
+                        <p class="text-muted mb-0">Mitgliedsarten (z.B. Verein, Firma, Familie) anlegen, deren Rabatt festlegen und pro Typ eigene Zusatzfelder definieren.</p>
                     </div>
+                    <partial name="~/Views/Admin/MembershipTypes/_Manager.cshtml" model="Model.MembershipTypes" />
                 </div>
             }
 
@@ -303,9 +300,7 @@
                                             <td>@record.Recipient</td>
                                             <td>@record.Subject</td>
                                             <td>
-                                                <span class="badge @(record.Status == "Sent" ? "bg-success" : "bg-danger")">
-                                                    @record.Status
-                                                </span>
+                                                @Html.Raw(ClubGear.Services.Core.NotificationStatusBadge.Html(record.Status))
                                             </td>
                                             <td class="text-muted">@record.Error</td>
                                         </tr>

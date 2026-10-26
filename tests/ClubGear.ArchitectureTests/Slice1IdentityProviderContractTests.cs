@@ -6,9 +6,13 @@ namespace ClubGear.ArchitectureTests;
 public sealed class Slice1IdentityProviderContractTests
 {
     [Fact]
-    public void ContractVersion_Current_Is_1_7_0()
+    public void ContractVersion_MinimumSupported_Matches_The_CORE_18_Floor()
     {
-        Assert.Equal(new Version(1, 7, 0), ContractVersion.Current);
+        // CORE-18. 1.13.0 removed a shape — the parameterless construction contract — so the floor
+        // moved with Current at the time. Current has since advanced additively (1.14.0, 1.15.0);
+        // this only asserts the floor CORE-18 set, not a specific Current, so it does not go stale
+        // on the next additive bump.
+        Assert.Equal(new Version(1, 13, 0), ContractVersion.MinimumSupported);
     }
 
     [Fact]

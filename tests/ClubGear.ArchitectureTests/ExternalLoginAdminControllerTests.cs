@@ -73,6 +73,19 @@ public sealed class ExternalLoginAdminControllerTests
         return ctrl;
     }
 
+    private static StubExternalLoginConfigService CreateServiceWithProvider()
+        => new()
+        {
+            DeclaredProviders =
+            [
+                new ExternalProviderInfo(
+                    "myprovider",
+                    "My Provider",
+                    "module.idp",
+                    IsEnabled: false)
+            ]
+        };
+
     // Minimal ITempDataProvider so TempDataDictionary can be instantiated without the full MVC pipeline.
     private sealed class NullTempDataProvider : ITempDataProvider
     {
@@ -111,7 +124,7 @@ public sealed class ExternalLoginAdminControllerTests
     [Fact]
     public async Task Index_ReturnsViewResult_WhenNoProvidersLoaded()
     {
-        var svc  = new StubExternalLoginConfigService();
+        var svc = new StubExternalLoginConfigService();
         using var ctrl = CreateController(svc);
 
         var result = await ctrl.Index();
@@ -153,7 +166,7 @@ public sealed class ExternalLoginAdminControllerTests
     [Fact]
     public async Task Configure_GET_ReturnsNotFound_WhenProviderKeyUnknown()
     {
-        var svc  = new StubExternalLoginConfigService();
+        var svc = CreateServiceWithProvider();
         using var ctrl = CreateController(svc);
 
         var result = await ctrl.Configure("unknown-provider");
@@ -164,7 +177,7 @@ public sealed class ExternalLoginAdminControllerTests
     [Fact]
     public async Task Configure_GET_RedirectsToIndex_WhenProviderParamNull()
     {
-        var svc  = new StubExternalLoginConfigService();
+        var svc = CreateServiceWithProvider();
         using var ctrl = CreateController(svc);
 
         var result = await ctrl.Configure(provider: null);
@@ -180,7 +193,7 @@ public sealed class ExternalLoginAdminControllerTests
     [Fact]
     public async Task Configure_POST_CallsSaveConfigAsync_WithCorrectProviderKeyAndValues()
     {
-        var svc  = new StubExternalLoginConfigService();
+        var svc = CreateServiceWithProvider();
         using var ctrl = CreateController(svc);
 
         var configValues = new Dictionary<string, string>
@@ -203,7 +216,7 @@ public sealed class ExternalLoginAdminControllerTests
     [Fact]
     public async Task Configure_POST_RedirectsToIndex_AfterSave()
     {
-        var svc  = new StubExternalLoginConfigService();
+        var svc = CreateServiceWithProvider();
         using var ctrl = CreateController(svc);
 
         var result = await ctrl.Configure("myprovider", new Dictionary<string, string>
@@ -235,7 +248,7 @@ public sealed class ExternalLoginAdminControllerTests
     [Fact]
     public async Task Activate_POST_WritesEnabledTrue_WhenEnabledIsTrue()
     {
-        var svc  = new StubExternalLoginConfigService();
+        var svc = CreateServiceWithProvider();
         using var ctrl = CreateController(svc);
 
         var result = await ctrl.Activate("myprovider", enabled: true);
@@ -249,7 +262,7 @@ public sealed class ExternalLoginAdminControllerTests
     [Fact]
     public async Task Activate_POST_WritesEnabledFalse_WhenEnabledIsFalse()
     {
-        var svc  = new StubExternalLoginConfigService();
+        var svc = CreateServiceWithProvider();
         using var ctrl = CreateController(svc);
 
         var result = await ctrl.Activate("myprovider", enabled: false);
@@ -262,7 +275,7 @@ public sealed class ExternalLoginAdminControllerTests
     [Fact]
     public async Task Activate_POST_RedirectsToIndex_AfterWritingFlag()
     {
-        var svc  = new StubExternalLoginConfigService();
+        var svc = CreateServiceWithProvider();
         using var ctrl = CreateController(svc);
 
         var result = await ctrl.Activate("myprovider", enabled: true);

@@ -160,7 +160,7 @@
                                     }
                                     @member.FullName
                                 </td>
-                                <td>@(member.Email ?? "")</td>
+                                <td>@(member.Email ?? "")@Html.Raw(ClubGear.Services.Core.MemberEmailBadge.Html(member))</td>
                                 <td>
                                     <button class="btn btn-warning btn-sm mb-1" data-bs-toggle="modal" data-bs-target="#editMemberModal" onclick="loadMemberEdit(@member.Id)">Bearbeiten</button>
                                     <button class="btn btn-success btn-sm mb-1" onclick="verifyMember(@member.Id)">Verifizieren</button>
@@ -197,7 +197,7 @@
                                 </div>
                             </div>
                             <div><strong>Mitglieds-Nr:</strong> @member.MemberNumber</div>
-                            <div><strong>E-Mail:</strong> @(member.Email ?? "-")</div>
+                            <div><strong>E-Mail:</strong> @(member.Email ?? "-")@Html.Raw(ClubGear.Services.Core.MemberEmailBadge.Html(member))</div>
                             <div class="mt-2">
                                 <button class="btn btn-warning btn-sm w-100 mb-1" data-bs-toggle="modal" data-bs-target="#editMemberModal" onclick="loadMemberEdit(@member.Id)">Bearbeiten</button>
                                 <button class="btn btn-success btn-sm w-100 mb-1" onclick="verifyMember(@member.Id)">Verifizieren</button>
@@ -265,7 +265,7 @@
                                     }
                                     @member.FullName
                                 </td>
-                                <td>@(member.Email ?? "")</td>
+                                <td>@(member.Email ?? "")@Html.Raw(ClubGear.Services.Core.MemberEmailBadge.Html(member))</td>
                                 <td>
                                     <button class="btn btn-warning btn-sm mb-1" data-bs-toggle="modal" data-bs-target="#editMemberModal" onclick="loadMemberEdit(@member.Id)">Bearbeiten</button>
                                     <button class="btn btn-danger btn-sm mb-1" onclick="deleteMember(@member.Id)">Loeschen</button>
@@ -301,7 +301,7 @@
                                 </div>
                             </div>
                             <div><strong>Mitglieds-Nr:</strong> @member.MemberNumber</div>
-                            <div><strong>E-Mail:</strong> @(member.Email ?? "-")</div>
+                            <div><strong>E-Mail:</strong> @(member.Email ?? "-")@Html.Raw(ClubGear.Services.Core.MemberEmailBadge.Html(member))</div>
                             <div class="mt-2">
                                 <button class="btn btn-warning btn-sm w-100 mb-1" data-bs-toggle="modal" data-bs-target="#editMemberModal" onclick="loadMemberEdit(@member.Id)">Bearbeiten</button>
                                 <button class="btn btn-danger btn-sm w-100" onclick="deleteMember(@member.Id)">Loeschen</button>

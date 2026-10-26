@@ -33,14 +33,12 @@ public sealed class ServiceBookDependencyActivationSmokeTests
         await using var fixture = await CreateFixtureAsync();
 
         // Note: the shared ContractCompatibilityService is replaced with an always-compatible
-        // stub here. The real ServiceBook plugin.json declares "requiredCoreVersion": ">=1.0.0",
-        // which is a genuine, currently-installed value on disk (out of scope for Slice 5 to
-        // change) but now falls below ContractVersion.MinimumSupported after an unrelated,
-        // concurrent workstream bumped ContractVersion.Current to 1.8.0 (the same pre-existing,
-        // documented staleness that already causes 3 unrelated PluginInstallerServiceTests
-        // failures - see Slice 3/4 log entries). This smoke test exists to prove the Slice 5
-        // dependency guard end-to-end, not to re-validate contract compatibility, so the stub
-        // isolates it from that unrelated, already-tracked issue.
+        // stub here. The packaged ServiceBook plugin.json declares "requiredCoreVersion": ">=1.0.0",
+        // which is below ContractVersion.MinimumSupported — since CORE-18 that is 1.13.0, because
+        // the parameterless construction contract was removed. Adopting the new contract is the
+        // submodule's own work (see docs/backlog/plugins.md), so this test stubs the check out to
+        // keep proving what it exists to prove: the dependency guard end-to-end. The break itself
+        // is pinned by RealServiceBookPackage_IsRefused_ForMissingCanonicalConstructor below.
         var installer = new PluginInstallerService(
             Array.Empty<IPluginCatalogProvider>(),
             new NotConfiguredDownloader(),
@@ -73,7 +71,7 @@ public sealed class ServiceBookDependencyActivationSmokeTests
             fixture.Store,
             fixture.Registry,
             new PluginEndpointRegistrar(new NotSupportedRuntimeAdapter(), fixture.Registry),
-            new PluginLoader(fixture.PackageStore, NullLogger<PluginLoader>.Instance),
+            new PluginLoader(fixture.PackageStore, NullLogger<PluginLoader>.Instance, new AlwaysCompatibleContractCompatibilityService()),
             new PluginMigrationRunner(fixture.DbContext, new PluginSchemaNamePolicy(), NullLogger<PluginMigrationRunner>.Instance),
             new NoOpJobRunner(),
             NullLogger<PluginLifecycleService>.Instance);
@@ -83,6 +81,56 @@ public sealed class ServiceBookDependencyActivationSmokeTests
         Assert.False(activationResult.Success);
         Assert.Equal("dependency-not-met", activationResult.Status);
         Assert.Contains("clubgear.plugin.carinfo", activationResult.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// CORE-18. The pinning test for the deliberate break. With the contract floor stubbed out,
+    /// the real ServiceBook package gets as far as the constructor-shape gate — and is refused
+    /// there, because its provider types still use the parameterless construction contract that
+    /// 1.13.0 removed. When the submodule adopts <c>T(IPluginHostContext)</c> and re-packages,
+    /// this test is the one that has to change.
+    /// </summary>
+    [Fact]
+    public async Task RealServiceBookPackage_IsRefused_ForMissingCanonicalConstructor()
+    {
+        var (zipBytes, sha256Hex, signatureBase64, publicKeyPem) = ReadPackagedArtifacts();
+
+        await using var fixture = await CreateFixtureAsync();
+
+        var installer = new PluginInstallerService(
+            Array.Empty<IPluginCatalogProvider>(),
+            new NotConfiguredDownloader(),
+            new PluginIntegrityVerifier(),
+            new AlwaysCompatibleContractCompatibilityService(),
+            new PluginManifestParser(),
+            fixture.PackageStore,
+            fixture.Store,
+            NullLogger<PluginInstallerService>.Instance);
+
+        var installResult = await installer.InstallOrUpgradeFromZipAsync(
+            "ServiceBook-1.0.3.zip",
+            zipBytes,
+            sha256Hex,
+            signatureBase64,
+            publicKeyPem);
+
+        Assert.True(installResult.Success, $"Expected install success but got [{installResult.Status}] {installResult.Message}");
+
+        var storedRecord = fixture.Store.GetByKey("clubgear.plugin.servicebook");
+        Assert.NotNull(storedRecord);
+
+        // The loader is given the same always-compatible stub, so the load reaches the
+        // constructor-shape gate instead of stopping at the version gate.
+        var loader = new PluginLoader(
+            fixture.PackageStore,
+            NullLogger<PluginLoader>.Instance,
+            new AlwaysCompatibleContractCompatibilityService());
+
+        var loadResult = await loader.LoadAsync(storedRecord!);
+
+        Assert.False(loadResult.Success);
+        Assert.Contains("clubgear.plugin.servicebook", loadResult.Error!, StringComparison.Ordinal);
+        Assert.Contains("IPluginHostContext", loadResult.Error!, StringComparison.Ordinal);
     }
 
     private static (byte[] ZipBytes, string Sha256Hex, string SignatureBase64, string PublicKeyPem) ReadPackagedArtifacts()

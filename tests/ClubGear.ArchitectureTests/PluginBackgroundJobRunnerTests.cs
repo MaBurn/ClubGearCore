@@ -34,12 +34,16 @@ public sealed class PluginBackgroundJobRunnerTests
 
     private static PluginBackgroundJobRunner BuildRunner(
         IPluginRuntimeRegistry registry,
-        IHostApplicationLifetime? lifetime = null)
+        IHostApplicationLifetime? lifetime = null,
+        IPluginContributionActivator? activator = null)
     {
         var services = new ServiceCollection();
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
         lifetime ??= new StubHostApplicationLifetime();
-        return new PluginBackgroundJobRunner(registry, scopeFactory, lifetime);
+        activator ??= registry is StubPluginRuntimeRegistry stub
+            ? new StubPluginContributionActivator(stub.CreateProvider)
+            : new StubPluginContributionActivator((_, _) => null);
+        return new PluginBackgroundJobRunner(registry, activator, scopeFactory, lifetime);
     }
 
     // ---------------------------------------------------------------
@@ -261,18 +265,22 @@ public sealed class PluginBackgroundJobRunnerTests
 
         public IPluginModule? GetModule(string moduleId) => null;
 
-        public TProvider? CreateMemberProvider<TProvider>(string moduleId, string providerType)
-            where TProvider : class
-        {
-            var job = _providerFactory(moduleId, providerType);
-            return job as TProvider;
-        }
+        public Type? ResolveContributionType(string moduleId, string contributionType) => null;
 
-        public void Register(RegisteredPluginRuntime runtime, IPluginModule module, AssemblyLoadContext loadContext) { }
+        /// <summary>CORE-18. Feeds <see cref="StubPluginContributionActivator"/>.</summary>
+        public object? CreateProvider(string moduleId, string providerType)
+            => _providerFactory(moduleId, providerType);
+
+        public Task RegisterAsync(
+            RegisteredPluginRuntime runtime,
+            IPluginModule module,
+            AssemblyLoadContext loadContext,
+            CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public void AddOrReplaceRoute(string moduleId, PluginRouteContribution route) { }
 
-        public bool Unregister(string moduleId) => true;
+        public Task<PluginUnloadOutcome> UnregisterAsync(string moduleId, CancellationToken cancellationToken = default)
+            => Task.FromResult(new PluginUnloadOutcome(Removed: true, Drained: true, InFlightAtUnload: 0));
     }
 
     private sealed class StubHostApplicationLifetime : IHostApplicationLifetime

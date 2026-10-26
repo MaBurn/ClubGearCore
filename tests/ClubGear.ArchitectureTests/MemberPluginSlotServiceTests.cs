@@ -26,6 +26,7 @@ public sealed class MemberPluginSlotServiceTests
         var memberService = new FakeMemberFeatureService();
         var slotService = new MemberPluginSlotService(
             registry,
+            Plugins.TestContributionActivatorFactory.Create(registry, CreateRuntimeAdapter(memberService)),
             CreateRuntimeAdapter(memberService),
             memberService,
             NullLogger<MemberPluginSlotService>.Instance);
@@ -52,11 +53,12 @@ public sealed class MemberPluginSlotServiceTests
         var memberService = new FakeMemberFeatureService();
         var slotService = new MemberPluginSlotService(
             registry,
+            Plugins.TestContributionActivatorFactory.Create(registry, CreateRuntimeAdapter(memberService)),
             CreateRuntimeAdapter(memberService),
             memberService,
             NullLogger<MemberPluginSlotService>.Instance);
 
-        registry.Unregister(module.Manifest.ModuleId);
+        await registry.UnregisterAsync(module.Manifest.ModuleId);
 
         var result = await slotService.GetSlotsAsync(memberService.Member, BuildUser(PermissionKeys.MembersManage));
 
@@ -76,6 +78,7 @@ public sealed class MemberPluginSlotServiceTests
         var memberService = new FakeMemberFeatureService();
         var slotService = new MemberPluginSlotService(
             registry,
+            Plugins.TestContributionActivatorFactory.Create(registry, CreateRuntimeAdapter(memberService)),
             CreateRuntimeAdapter(memberService),
             memberService,
             NullLogger<MemberPluginSlotService>.Instance);
@@ -94,6 +97,7 @@ public sealed class MemberPluginSlotServiceTests
         var memberService = new FakeMemberFeatureService();
         var slotService = new MemberPluginSlotService(
             registry,
+            Plugins.TestContributionActivatorFactory.Create(registry, CreateRuntimeAdapter(memberService)),
             CreateRuntimeAdapter(memberService),
             memberService,
             NullLogger<MemberPluginSlotService>.Instance);
@@ -118,6 +122,7 @@ public sealed class MemberPluginSlotServiceTests
         var memberService = new FakeMemberFeatureService();
         var slotService = new MemberPluginSlotService(
             registry,
+            Plugins.TestContributionActivatorFactory.Create(registry, CreateRuntimeAdapter(memberService)),
             CreateRuntimeAdapter(memberService),
             memberService,
             NullLogger<MemberPluginSlotService>.Instance);
@@ -139,6 +144,7 @@ public sealed class MemberPluginSlotServiceTests
         var memberService = new FakeMemberFeatureService();
         var slotService = new MemberPluginSlotService(
             registry,
+            Plugins.TestContributionActivatorFactory.Create(registry, CreateRuntimeAdapter(memberService)),
             CreateRuntimeAdapter(memberService),
             memberService,
             NullLogger<MemberPluginSlotService>.Instance);
@@ -164,6 +170,7 @@ public sealed class MemberPluginSlotServiceTests
         var memberService = new FakeMemberFeatureService();
         var slotService = new MemberPluginSlotService(
             registry,
+            Plugins.TestContributionActivatorFactory.Create(registry, CreateRuntimeAdapter(memberService)),
             CreateRuntimeAdapter(memberService),
             memberService,
             NullLogger<MemberPluginSlotService>.Instance);
@@ -212,7 +219,7 @@ public sealed class MemberPluginSlotServiceTests
             Array.Empty<PluginIdentityProviderContribution>(),
             Array.Empty<PluginSelfServiceProfileProviderContribution>());
 
-        registry.Register(runtime, module, AssemblyLoadContext.GetLoadContext(module.GetType().Assembly)!);
+        registry.RegisterAsync(runtime, module, AssemblyLoadContext.GetLoadContext(module.GetType().Assembly)!).GetAwaiter().GetResult();
     }
 
     private sealed class RecordingContributionSink : IPluginContributionSink

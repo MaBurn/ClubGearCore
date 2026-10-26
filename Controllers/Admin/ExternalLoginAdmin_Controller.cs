@@ -74,7 +74,13 @@ public sealed class ExternalLoginAdminController : Controller
         configValues.Remove("__RequestVerificationToken");
         configValues.Remove("provider");
 
-        await _configService.SaveConfigAsync(provider, configValues, cancellationToken);
+        var providers = await _configService.GetAllDeclaredProvidersAsync(cancellationToken);
+        var info = providers.FirstOrDefault(candidate =>
+            string.Equals(candidate.ProviderKey, provider, StringComparison.OrdinalIgnoreCase));
+        if (info is null)
+            return NotFound();
+
+        await _configService.SaveConfigAsync(info.ProviderKey, configValues, cancellationToken);
 
         return RedirectToAction(nameof(Index));
     }
@@ -111,12 +117,18 @@ public sealed class ExternalLoginAdminController : Controller
         if (string.IsNullOrWhiteSpace(provider))
             return RedirectToAction(nameof(Index));
 
+        var providers = await _configService.GetAllDeclaredProvidersAsync(cancellationToken);
+        var info = providers.FirstOrDefault(candidate =>
+            string.Equals(candidate.ProviderKey, provider, StringComparison.OrdinalIgnoreCase));
+        if (info is null || !info.IsAvailable)
+            return BadRequest("Identity provider is unavailable or ambiguous.");
+
         var flag = new Dictionary<string, string>
         {
             ["enabled"] = enabled ? "true" : "false"
         };
 
-        await _configService.SaveConfigAsync(provider, flag, cancellationToken);
+        await _configService.SaveConfigAsync(info.ProviderKey, flag, cancellationToken);
 
         return RedirectToAction(nameof(Index));
     }

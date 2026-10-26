@@ -12,13 +12,16 @@ namespace ClubGear.Services.ExternalLogin;
 internal sealed class IdpClaimsEnricher : IIdpClaimsEnricher
 {
     private readonly IPluginRegistryReader _registryReader;
+    private readonly IPluginContributionActivator _contributionActivator;
     private readonly ILogger<IdpClaimsEnricher> _logger;
 
     public IdpClaimsEnricher(
         IPluginRegistryReader registryReader,
+        IPluginContributionActivator contributionActivator,
         ILogger<IdpClaimsEnricher> logger)
     {
         _registryReader = registryReader;
+        _contributionActivator = contributionActivator;
         _logger         = logger;
     }
 
@@ -34,23 +37,38 @@ internal sealed class IdpClaimsEnricher : IIdpClaimsEnricher
                 if (!string.Equals(contribution.ProviderKey, providerKey, StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                var plugin = _registryReader.CreateMemberProvider<IIdentityProviderPlugin>(
+                await using var lease = _contributionActivator.Rent<IIdentityProviderPlugin>(
                     runtime.ModuleId, contribution.ProviderType);
 
-                if (plugin is null)
+                // CORE-18. Still fails closed: a login must not silently lose its claims. What
+                // changes is that the reason from the lease travels with the exception.
+                if (lease.Instance is not { } plugin)
                 {
-                    _logger.LogWarning(
+                    _logger.LogError(
                         "IdpClaimsEnricher: could not instantiate provider type '{ProviderType}' " +
-                        "for plugin '{ModuleId}' (key '{ProviderKey}').",
-                        contribution.ProviderType, runtime.ModuleId, providerKey);
-                    continue;
+                        "for plugin '{ModuleId}' (key '{ProviderKey}'): {Reason}",
+                        contribution.ProviderType, runtime.ModuleId, providerKey, lease.Error);
+                    throw new InvalidOperationException(
+                        $"Could not instantiate the mapper for identity provider '{providerKey}': {lease.Error}");
                 }
 
-                var claims = await plugin.MapClaimsAsync(context, ct);
-                return claims;
+                if (!string.Equals(
+                    plugin.ProviderKey,
+                    contribution.ProviderKey,
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        $"Identity provider '{contribution.ProviderType}' declares key " +
+                        $"'{plugin.ProviderKey}' instead of '{contribution.ProviderKey}'.");
+                }
+
+                return await plugin.MapClaimsAsync(context, ct)
+                    ?? throw new InvalidOperationException(
+                        $"Identity provider '{providerKey}' returned a null claim mapping.");
             }
         }
 
-        return Array.Empty<PluginClaimEntry>();
+        throw new InvalidOperationException(
+            $"No claim mapper is registered for identity provider '{providerKey}'.");
     }
 }

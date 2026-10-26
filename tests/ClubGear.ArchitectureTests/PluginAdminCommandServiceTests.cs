@@ -22,6 +22,7 @@ public sealed class PluginAdminCommandServiceTests
 
         var service = new PluginAdminCommandService(
             registry,
+            Plugins.TestContributionActivatorFactory.Create(registry, CreateRuntimeAdapter()),
             CreateRuntimeAdapter(),
             NullLogger<PluginAdminCommandService>.Instance);
 
@@ -44,6 +45,7 @@ public sealed class PluginAdminCommandServiceTests
 
         var service = new PluginAdminCommandService(
             registry,
+            Plugins.TestContributionActivatorFactory.Create(registry, CreateRuntimeAdapter()),
             CreateRuntimeAdapter(),
             NullLogger<PluginAdminCommandService>.Instance);
 
@@ -61,6 +63,7 @@ public sealed class PluginAdminCommandServiceTests
 
         var service = new PluginAdminCommandService(
             registry,
+            Plugins.TestContributionActivatorFactory.Create(registry, CreateRuntimeAdapter()),
             CreateRuntimeAdapter(),
             NullLogger<PluginAdminCommandService>.Instance);
 
@@ -82,6 +85,7 @@ public sealed class PluginAdminCommandServiceTests
 
         var service = new PluginAdminCommandService(
             registry,
+            Plugins.TestContributionActivatorFactory.Create(registry, CreateRuntimeAdapter()),
             CreateRuntimeAdapter(),
             NullLogger<PluginAdminCommandService>.Instance);
 
@@ -113,7 +117,7 @@ public sealed class PluginAdminCommandServiceTests
 
     private static void RegisterRuntime(PluginRegistry registry, IPluginModule module)
     {
-        registry.Register(
+        registry.RegisterAsync(
             new RegisteredPluginRuntime(
                 module.Manifest.ModuleId,
                 module.Manifest.DisplayName,
@@ -128,7 +132,7 @@ public sealed class PluginAdminCommandServiceTests
                 Array.Empty<PluginIdentityProviderContribution>(),
                 Array.Empty<PluginSelfServiceProfileProviderContribution>()),
             module,
-            AssemblyLoadContext.GetLoadContext(module.GetType().Assembly)!);
+            AssemblyLoadContext.GetLoadContext(module.GetType().Assembly)!).GetAwaiter().GetResult();
     }
 
     private sealed class ClaimsBackedPermissionFacade : IExtensionPermissionFacade

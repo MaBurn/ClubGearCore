@@ -9,15 +9,18 @@ namespace ClubGear.Services.Core;
 public sealed class SelfServiceSectionService : ISelfServiceSectionService
 {
     private readonly IPluginRegistryReader _pluginRegistryReader;
+    private readonly IPluginContributionActivator _contributionActivator;
     private readonly IPluginRuntimeAdapter _pluginRuntimeAdapter;
     private readonly ILogger<SelfServiceSectionService> _logger;
 
     public SelfServiceSectionService(
         IPluginRegistryReader pluginRegistryReader,
+        IPluginContributionActivator contributionActivator,
         IPluginRuntimeAdapter pluginRuntimeAdapter,
         ILogger<SelfServiceSectionService> logger)
     {
         _pluginRegistryReader = pluginRegistryReader;
+        _contributionActivator = contributionActivator;
         _pluginRuntimeAdapter = pluginRuntimeAdapter;
         _logger = logger;
     }
@@ -43,20 +46,16 @@ public sealed class SelfServiceSectionService : ISelfServiceSectionService
 
             foreach (var contribution in runtime.SelfServiceProfileProviders.OrderBy(p => p.Order))
             {
-                ISelfServiceProfileSectionProvider? provider;
-                try
-                {
-                    provider = _pluginRegistryReader.CreateMemberProvider<ISelfServiceProfileSectionProvider>(
-                        runtime.ModuleId, contribution.ProviderType);
-                }
-                catch (TypeLoadException ex)
-                {
-                    _logger.LogError(ex, "Provider {ProviderType} fuer Modul {ModuleId} konnte nicht instanziert werden. Moegliche Ursache: veraltete Contracts-Assembly im Host-Prozess.", contribution.ProviderType, runtime.ModuleId);
-                    continue;
-                }
+                await using var lease = _contributionActivator.Rent<ISelfServiceProfileSectionProvider>(
+                    runtime.ModuleId, contribution.ProviderType, user);
 
-                if (provider is null)
+                if (lease.Instance is not { } provider)
                 {
+                    _logger.LogWarning(
+                        "Self-Service-Provider {ProviderType} fuer Modul {ModuleId} wurde uebersprungen: {Reason}",
+                        contribution.ProviderType,
+                        runtime.ModuleId,
+                        lease.Error);
                     continue;
                 }
 
@@ -113,20 +112,17 @@ public sealed class SelfServiceSectionService : ISelfServiceSectionService
 
         foreach (var contribution in runtime.SelfServiceProfileProviders.OrderBy(p => p.Order))
         {
-            ISelfServiceProfileSectionProvider? provider;
-            try
-            {
-                provider = _pluginRegistryReader.CreateMemberProvider<ISelfServiceProfileSectionProvider>(
-                    runtime.ModuleId, contribution.ProviderType);
-            }
-            catch (TypeLoadException ex)
-            {
-                _logger.LogError(ex, "Provider {ProviderType} fuer Modul {ModuleId} (Aktion {ActionKey}) konnte nicht instanziert werden. Moegliche Ursache: veraltete Contracts-Assembly im Host-Prozess.", contribution.ProviderType, runtime.ModuleId, request.ActionKey);
-                return new PluginMemberActionResult(false, "plugin-type-load-error", "Plugin konnte nicht geladen werden.");
-            }
+            await using var lease = _contributionActivator.Rent<ISelfServiceProfileSectionProvider>(
+                runtime.ModuleId, contribution.ProviderType, user);
 
-            if (provider is null)
+            if (lease.Instance is not { } provider)
             {
+                _logger.LogWarning(
+                    "Self-Service-Provider {ProviderType} fuer Modul {ModuleId} (Aktion {ActionKey}) wurde uebersprungen: {Reason}",
+                    contribution.ProviderType,
+                    runtime.ModuleId,
+                    request.ActionKey,
+                    lease.Error);
                 continue;
             }
 

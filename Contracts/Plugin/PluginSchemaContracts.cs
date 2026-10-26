@@ -8,6 +8,7 @@ public enum PluginSchemaFieldType
     Date,
     Boolean,
     Select,
+    Combo,
     Secret
 }
 

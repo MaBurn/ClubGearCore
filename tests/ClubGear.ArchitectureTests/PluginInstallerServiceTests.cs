@@ -249,7 +249,7 @@ public sealed class PluginInstallerServiceTests
         Version pluginVersion,
         RSA rsa,
         bool useLegacyManifest = false,
-        string requiredCoreVersion = ">=1.0.0",
+        string requiredCoreVersion = ">=1.13.0",
         string? category = null)
     {
         var categoryLine = category is not null ? $$$"""
@@ -262,7 +262,7 @@ public sealed class PluginInstallerServiceTests
               "moduleId": "{{moduleId}}",
               "displayName": "{{displayName}}",
               "pluginVersion": "{{pluginVersion}}",
-              "requiredContractVersion": "1.0.0",
+              "requiredContractVersion": "1.13.0",
               "entryPointType": "{{moduleId}}.PluginModule"
             }
             """

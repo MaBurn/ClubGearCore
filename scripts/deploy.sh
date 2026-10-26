@@ -1,13 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TAG="${1:-test}"
-SSH_HOST="${2:-}"
+source "$(dirname "${BASH_SOURCE[0]}")/version.sh"
+
+# Aufruf: deploy.sh <tag> <user@host>  oder  deploy.sh <user@host>  (Tag = Version aus csproj)
+if [[ $# -eq 1 && "$1" == *@* ]]; then
+    TAG="$(clubgear_version)"
+    SSH_HOST="$1"
+else
+    TAG="${1:-$(clubgear_version)}"
+    SSH_HOST="${2:-}"
+fi
+
 ARCHIVE="clubgear-${TAG}.tar.gz"
 
 if [[ -z "$SSH_HOST" ]]; then
-    echo "Verwendung: ./scripts/deploy.sh <tag> <user@host>"
-    echo "Beispiel:   ./scripts/deploy.sh test max@192.168.1.10"
+    echo "Verwendung: ./scripts/deploy.sh [tag] <user@host>"
+    echo "Beispiel:   ./scripts/deploy.sh max@192.168.1.10          (Tag: $(clubgear_version))"
+    echo "            ./scripts/deploy.sh 2026.7.1 max@192.168.1.10"
     exit 1
 fi
 

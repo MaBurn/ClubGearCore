@@ -1,0 +1,44 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>ClubGear - feature pitches</title>
+<style>
+  html,body{margin:0;background:#0d1b26;font-family:"Segoe UI",Arial,sans-serif;color:#cfe6f4}
+  header{position:fixed;top:0;left:0;right:0;padding:10px 18px;background:rgba(13,27,38,.92);
+    font-size:13px;letter-spacing:.04em;z-index:9;border-bottom:1px solid #1e3446}
+  header b{color:#fff}
+  .deck{padding:52px 0 40px}
+  img{display:block;width:min(1600px,96vw);margin:0 auto 26px;border-radius:8px;
+    box-shadow:0 8px 30px rgba(0,0,0,.45);background:#fff}
+  kbd{background:#1c3446;border-radius:4px;padding:1px 6px;font-size:11px}
+</style>
+<header><b>ClubGear &middot; feature pitches</b> &mdash; 19 slides &middot; scroll, or <kbd>Space</kbd> / <kbd>&darr;</kbd> to advance</header>
+<div class="deck">
+  <img src="00-title.svg" alt="00-title.svg">
+  <img src="01-how-to-read.svg" alt="01-how-to-read.svg">
+  <img src="02-core-03.svg" alt="02-core-03.svg">
+  <img src="03-core-02.svg" alt="03-core-02.svg">
+  <img src="04-core-01.svg" alt="04-core-01.svg">
+  <img src="05-core-05.svg" alt="05-core-05.svg">
+  <img src="06-core-04.svg" alt="06-core-04.svg">
+  <img src="07-core-08.svg" alt="07-core-08.svg">
+  <img src="08-core-07.svg" alt="08-core-07.svg">
+  <img src="09-core-06.svg" alt="09-core-06.svg">
+  <img src="10-inv-01.svg" alt="10-inv-01.svg">
+  <img src="11-fin-01.svg" alt="11-fin-01.svg">
+  <img src="12-news-01.svg" alt="12-news-01.svg">
+  <img src="13-backlog-a.svg" alt="13-backlog-a.svg">
+  <img src="14-backlog-b.svg" alt="14-backlog-b.svg">
+  <img src="15-backlog-c.svg" alt="15-backlog-c.svg">
+  <img src="16-matrix.svg" alt="16-matrix.svg">
+  <img src="17-do-not-execute.svg" alt="17-do-not-execute.svg">
+  <img src="18-recommendation.svg" alt="18-recommendation.svg">
+</div>
+<script>
+const imgs=[...document.images];let i=0;
+addEventListener('keydown',e=>{
+  if(['ArrowDown',' ','PageDown'].includes(e.key)){e.preventDefault();i=Math.min(i+1,imgs.length-1)}
+  else if(['ArrowUp','PageUp'].includes(e.key)){e.preventDefault();i=Math.max(i-1,0)}
+  else return;
+  imgs[i].scrollIntoView({behavior:'smooth',block:'center'});
+});
+</script>

@@ -18,12 +18,18 @@ public sealed class AdminController : Controller
     private readonly ISystemConfigService _systemConfigService;
     private readonly ApplicationDbContext _dbContext;
     private readonly IPermissionService _permissionService;
+    private readonly IMembershipTypeService _membershipTypeService;
 
-    public AdminController(ISystemConfigService systemConfigService, ApplicationDbContext dbContext, IPermissionService permissionService)
+    public AdminController(
+        ISystemConfigService systemConfigService,
+        ApplicationDbContext dbContext,
+        IPermissionService permissionService,
+        IMembershipTypeService membershipTypeService)
     {
         _systemConfigService = systemConfigService;
         _dbContext = dbContext;
         _permissionService = permissionService;
+        _membershipTypeService = membershipTypeService;
     }
 
     [HttpGet]
@@ -34,6 +40,14 @@ public sealed class AdminController : Controller
             await _systemConfigService.GetValueAsync("System", "MaintenanceMode", cancellationToken),
             out var parsedMaintenanceMode)
             && parsedMaintenanceMode;
+
+        var canManageMembershipTypes = await _permissionService.HasPermissionAsync(User, PermissionKeys.MembersTypesManage, cancellationToken);
+        var membershipTypes = canManageMembershipTypes
+            ? new MembershipTypesViewModel
+            {
+                Types = (await _membershipTypeService.GetAllAsync(cancellationToken)).ToList()
+            }
+            : null;
 
         var model = new AdminFunctionsViewModel
         {
@@ -46,7 +60,8 @@ public sealed class AdminController : Controller
                 .Take(50)
                 .ToListAsync(cancellationToken),
             MaintenanceModeEnabled = maintenanceModeEnabled,
-            CanManageMembershipTypes = await _permissionService.HasPermissionAsync(User, PermissionKeys.MembersTypesManage, cancellationToken),
+            CanManageMembershipTypes = canManageMembershipTypes,
+            MembershipTypes = membershipTypes,
             Feedback = ActionFeedbackViewModel.FromTempData(TempData)
         };
 
@@ -228,6 +243,27 @@ public sealed class AdminController : Controller
                     new AdminConfigFieldViewModel { Label = "Passwort", Key = nameof(EmailSettings.Password), Section = "Email", InputType = "password" },
                     new AdminConfigFieldViewModel { Label = "Pickup Directory aktiv", Key = nameof(EmailSettings.UsePickupDirectory), Section = "Email", InputType = "checkbox" },
                     new AdminConfigFieldViewModel { Label = "Pickup Directory", Key = nameof(EmailSettings.PickupDirectory), Section = "Email" }
+                }
+            },
+            new AdminConfigCardViewModel
+            {
+                SectionGroupTitle = "Kommunikation",
+                Title = "E-Mail / IMAP Postfach",
+                Description = "IMAP-Zugang, Ablage gesendeter E-Mails im Gesendet-Ordner und Pruefung auf Unzustellbarkeitsmeldungen.",
+                ModalId = "cfgModal-imap",
+                ThemeCssClass = "info",
+                Fields = new[]
+                {
+                    new AdminConfigFieldViewModel { Label = "IMAP Host", Key = nameof(EmailSettings.ImapHost), Section = "Email" },
+                    new AdminConfigFieldViewModel { Label = "IMAP Port", Key = nameof(EmailSettings.ImapPort), Section = "Email", InputType = "number" },
+                    new AdminConfigFieldViewModel { Label = "SSL/TLS aktiv", Key = nameof(EmailSettings.ImapUseSsl), Section = "Email", InputType = "checkbox" },
+                    new AdminConfigFieldViewModel { Label = "IMAP Benutzername", Key = nameof(EmailSettings.ImapUsername), Section = "Email" },
+                    new AdminConfigFieldViewModel { Label = "IMAP Passwort", Key = nameof(EmailSettings.ImapPassword), Section = "Email", InputType = "password" },
+                    new AdminConfigFieldViewModel { Label = "Gesendet-Ordner", Key = nameof(EmailSettings.SentFolder), Section = "Email" },
+                    new AdminConfigFieldViewModel { Label = "Kopie in Gesendet-Ordner", Key = nameof(EmailSettings.AppendSentEnabled), Section = "Email", InputType = "checkbox" },
+                    new AdminConfigFieldViewModel { Label = "Bounce-Ordner", Key = nameof(EmailSettings.BounceFolder), Section = "Email" },
+                    new AdminConfigFieldViewModel { Label = "Bounce-Pruefung aktiv", Key = nameof(EmailSettings.BounceCheckEnabled), Section = "Email", InputType = "checkbox" },
+                    new AdminConfigFieldViewModel { Label = "Bounce-Pruefintervall (Minuten)", Key = nameof(EmailSettings.BouncePollIntervalMinutes), Section = "Email", InputType = "number" }
                 }
             }
         };
