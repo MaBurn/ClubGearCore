@@ -68,8 +68,11 @@ The repository currently contains these plugin examples:
 
 | Plugin | Category | Purpose |
 |---|---|---|
-| `CarInfo` | `member-profile` | Vehicle information on member profiles and self-service pages. |
-| `Serviceheft` | `member-profile` | Service-book data that depends on the car information plugin. |
+| `CarInfo` | `member-profile` | Vehicle tracking on the member profile: zero-to-many vehicles per member with make, color, license plate, plus admin-definable custom fields. |
+| `Finance` | `member-profile` | Member banking and club accounting: SEPA mandates, dues generation and dunning, SEPA direct-debit file export, bank-statement import with matching, chart of accounts and budget reporting. |
+| `Inventar` | `general-extension` | General-purpose club inventory register: items with category, status and storage location, with an optional responsible member. |
+| `Serviceheft` | `member-profile` | Member-linked vehicle maintenance and repair history built on CarInfo: service entries, mileage, workshop and cost tracking, parts/consumables, per-vehicle cost overview. |
+| `IamOidc` | `technical` | External login via OpenID Connect, with guided presets for Keycloak, Microsoft Entra ID, and generic OIDC, plus a built-in connection test before go-live. |
 
 Plugin packages are distributed as ZIP files containing a manifest and the built plugin assembly. Packaging scripts can emit checksums and signature files so the host can verify installed packages.
 
