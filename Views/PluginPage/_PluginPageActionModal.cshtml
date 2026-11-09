@@ -155,16 +155,16 @@
 
         function renderField(field) {
             const wrapperClass = field.inputType === 'MultilineText' ? 'col-12' : 'col-12 col-md-6';
-            const fieldId = `plugin-page-action-${field.key}`;
+            const fieldId = `plugin-page-action-${escapeHtml(field.key)}`;
             const constraints = field.constraints || {};
             const requiredAttr = field.required ? ' required' : '';
             const placeholderAttr = hasValue(field.placeholder) ? ` placeholder="${escapeHtml(field.placeholder)}"` : '';
             const helpText = hasValue(field.helpText) ? `<div class="form-text">${escapeHtml(field.helpText)}</div>` : '';
             const label = `${escapeHtml(field.label)}${field.required ? ' <span class="text-danger">*</span>' : ''}`;
-            const minLengthAttr = hasValue(constraints.minLength) ? ` minlength="${constraints.minLength}"` : '';
-            const maxLengthAttr = hasValue(constraints.maxLength) ? ` maxlength="${constraints.maxLength}"` : '';
-            const minAttr = hasValue(constraints.min) ? ` min="${constraints.min}"` : '';
-            const maxAttr = hasValue(constraints.max) ? ` max="${constraints.max}"` : '';
+            const minLengthAttr = hasValue(constraints.minLength) ? ` minlength="${escapeHtml(constraints.minLength)}"` : '';
+            const maxLengthAttr = hasValue(constraints.maxLength) ? ` maxlength="${escapeHtml(constraints.maxLength)}"` : '';
+            const minAttr = hasValue(constraints.min) ? ` min="${escapeHtml(constraints.min)}"` : '';
+            const maxAttr = hasValue(constraints.max) ? ` max="${escapeHtml(constraints.max)}"` : '';
             const regexAttr = hasValue(constraints.regexPattern) ? ` pattern="${escapeHtml(constraints.regexPattern)}"` : '';
             const dateMinAttr = hasValue(constraints.dateMin) ? ` min="${escapeHtml(constraints.dateMin)}"` : '';
             const dateMaxAttr = hasValue(constraints.dateMax) ? ` max="${escapeHtml(constraints.dateMax)}"` : '';
@@ -212,7 +212,7 @@
             }
 
             if (field.inputType === 'Combo') {
-                const listId = `dl-${field.key}`;
+                const listId = `dl-${escapeHtml(field.key)}`;
                 const options = Array.isArray(field.options)
                     ? field.options.map(option => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`).join('')
                     : '';

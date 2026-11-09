@@ -26,6 +26,25 @@ The first three runs on the previous version are done, and that moved the head o
 | — | two new core items filed from the CarInfo adoption: CORE-22 item 5, and CORE-24 |
 | Run 2 — CORE-22 items 4/5 and CORE-23 | **run complete** (`294013e`, `30fd068`, plus the local submodule repair); both now `delivered` |
 
+## Priority 2026-11-09: unblock Redaktion (EDIT-01)
+
+The product owner wants the Redaktion plugin unblocked as soon as possible. Its build waits on four
+core capabilities (`plugins/Redaktion/README.md`). That overrides the appetite ordering below for
+these runs, in this order:
+
+| # | Run | Items | Why this position |
+|---|---|---|---|
+| R1 | Acting member on page commands | CORE-29 | **Done** (contract 1.16.0). |
+| R2 | The provider seam, finished | CORE-13 increment 2, CORE-14 | = run 4 below; prerequisite of CORE-02. |
+| R3 | Plugin settings and secret store | CORE-15 | = run 5; Nextcloud credentials. |
+| R4 | Secure file and media storage | CORE-02 | = run 9; images and Markdown files. Needs R2. **Includes the file field type and storage reference in the contract**, without which no plugin can use it. |
+| R5 | Notification inbox — remaining part | CORE-04 | Status-change notifications. Re-scope against what is `partial` today. |
+| R6 | Entity-dependent command form | CORE-30 | Not blocking (union-schema workaround); improves Redaktion UX. |
+
+Independent of this order: **CORE-31** (unsanitised plugin HTML) is a security item, P1, and should run in parallel with a security review.
+
+`/crispy:start CORE-29: give plugin page providers the acting member — an additive IPluginHostContext member bound by the host from the authenticated principal, never from command arguments; see docs/backlog/core-platform.md CORE-29`
+
 ## Order at a glance
 
 | # | Run | Items | Owner | Ready? |

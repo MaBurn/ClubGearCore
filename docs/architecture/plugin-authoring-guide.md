@@ -385,6 +385,11 @@ Im Runtime-Kontext stehen die Contract-Facades zur Verfuegung:
 - `IPluginHostContext.Members`
 - `IPluginHostContext.MemberActions`
 - `IPluginHostContext.Persistence`
+- `IPluginHostContext.Actor` (ab Contract 1.16.0): `GetMemberIdAsync()` liefert die Mitglieds-Id
+  des angemeldeten Benutzers, oder `null`, wenn niemand angemeldet ist, kein Mitglied verknuepft
+  ist oder der Host selbst aufruft (z. B. Background-Jobs). Wer etwas einreicht, ausleiht oder
+  "meine Eintraege" sehen will, nimmt die Identitaet von hier, **nie** aus Befehlsargumenten.
+  `requiredCoreVersion` dann mindestens `>=1.16.0`.
 
 Fuer UI-getriebene Erweiterungen stehen zusaetzlich folgende Contribution-Typen zur Verfuegung:
 - Member-Slots (`DetailCard`, `EditTab`, `StatusBadge`, `Action`)
@@ -504,6 +509,27 @@ new PluginPageColumn("icon", "Typ") { IsIconColumn = true }
 
 `GetRowsAsync` liefert fuer diesen Key einen Bootstrap-Icons-Klassennamen wie `bi-box-seam`. Die
 Property ist `init`-only und standardmaessig `false`; bestehende Plugins bleiben binaer kompatibel.
+
+### Plugin-HTML: was der Host rendert (CORE-31)
+
+Der Host bereinigt `Content` von Edit-Tabs und `HtmlBody` von Self-Service-Sektionen mit einer
+strikten Allowlist.
+
+- `<script>`, `<style>`, `on*`-Attribute, `style`-Attribute sowie `javascript:`- und `data:`-Links
+  werden entfernt.
+- Tabellen, Links, `class`, `data-*` und `aria-*` bleiben erhalten. Formularelemente gibt es
+  **nur in Self-Service-Sektionen**. Edit-Tabs liegen im Bearbeiten-Formular des Hosts; dort bleiben
+  nur Buttons erhalten, als `type="button"` fuer Host-Aktionen.
+- Ids erhalten das Praefix `plugin-content-`; Verweise per `for`, `aria-*` und `#…` werden
+  mitgezogen.
+- Interaktion laeuft ueber Member-Aktionen, generische Plugin-Seiten oder ueber
+  Self-Service-Formulare mit `<form data-action-key="...">`. Letztere schickt der Host selbst ab;
+  die Fehler kommen per `PluginFieldError.FieldKey` = `name` des Eingabefelds zurueck.
+- **Jeden Benutzer- oder Datenbankwert mit `WebUtility.HtmlEncode` kodieren.** Das kann der Host
+  nicht fuer das Plugin uebernehmen.
+- Nav-Routen muessen mit `/` beginnen.
+
+Details: [Plugin-Contract, Host rendering rules](../plugin-contract.md#host-rendering-rules-core-31).
 
 ## 7. Runtime-Route aufrufen
 

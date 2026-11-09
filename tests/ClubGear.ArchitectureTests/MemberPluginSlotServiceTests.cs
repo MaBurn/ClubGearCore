@@ -44,6 +44,31 @@ public sealed class MemberPluginSlotServiceTests
     }
 
     [Fact]
+    public async Task GetSlotsAsync_SanitisesEditTabContent_WhenAPluginEchoesMemberDataUnencoded()
+    {
+        // CORE-31. RuntimeLoadedEditTabProviderA interpolates the member number into its HTML without
+        // encoding, which is exactly the plugin bug the host-side sanitiser exists to contain.
+        var registry = new PluginRegistry();
+        RegisterRuntime(registry, new Plugins.RuntimeLoadedPluginModuleA());
+
+        var memberService = new FakeMemberFeatureService();
+        memberService.Member.MemberNumber = "<img src=x onerror=alert(1)><script>alert(2)</script>";
+        var slotService = new MemberPluginSlotService(
+            registry,
+            Plugins.TestContributionActivatorFactory.Create(registry, CreateRuntimeAdapter(memberService)),
+            CreateRuntimeAdapter(memberService),
+            memberService,
+            NullLogger<MemberPluginSlotService>.Instance);
+
+        var result = await slotService.GetSlotsAsync(memberService.Member, BuildUser(PermissionKeys.MembersManage));
+
+        var content = Assert.Single(result.EditTabs).Tab.Content;
+        Assert.DoesNotContain("onerror", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<script", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Bearbeitungsinhalt fuer", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task GetSlotsAsync_ReturnsEmptyAfterPluginDeactivation()
     {
         var registry = new PluginRegistry();

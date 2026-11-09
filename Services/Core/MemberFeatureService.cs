@@ -67,6 +67,21 @@ public sealed class MemberFeatureService : IMemberFeatureService
             .FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
     }
 
+    public async Task<int?> FindLinkedMemberIdAsync(string applicationUserId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(applicationUserId))
+        {
+            return null;
+        }
+
+        // Member.ApplicationUserId has a unique index, so at most one member matches.
+        return await _db.Members
+            .AsNoTracking()
+            .Where(m => m.ApplicationUserId == applicationUserId)
+            .Select(m => (int?)m.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<MemberReferenceOption>> SearchForReferenceAsync(string? query, int limit = 10, CancellationToken cancellationToken = default)
     {
         var terms = (query ?? string.Empty)

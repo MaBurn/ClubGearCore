@@ -74,7 +74,7 @@ public sealed class SelfServiceSectionService : ISelfServiceSectionService
                         sections.Add(new SelfServicePluginSectionView(
                             runtime.ModuleId,
                             runtime.DisplayName,
-                            section,
+                            section with { HtmlBody = PluginHtml.SanitizeSection(section.HtmlBody) },
                             contribution.Order + section.Order));
                     }
                 }

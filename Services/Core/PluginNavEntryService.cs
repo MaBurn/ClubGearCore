@@ -19,6 +19,7 @@ public sealed class PluginNavEntryService : IPluginNavEntryService
     {
         var candidates = _registryReader.GetRegisteredPlugins()
             .SelectMany(runtime => runtime.NavEntries)
+            .Where(entry => IsLocalRoute(entry.Route))
             .OrderBy(entry => entry.SortOrder)
             .ThenBy(entry => entry.Label)
             .ToList();
@@ -35,4 +36,14 @@ public sealed class PluginNavEntryService : IPluginNavEntryService
 
         return entries;
     }
+
+    /// <summary>
+    /// CORE-31. A plugin nav entry may only point into this host: an app-relative path. That rules
+    /// out <c>javascript:</c>/<c>data:</c> links and protocol-relative (<c>//</c>) or backslash
+    /// redirects to another origin.
+    /// </summary>
+    internal static bool IsLocalRoute(string? route)
+        => !string.IsNullOrEmpty(route)
+           && route[0] == '/'
+           && (route.Length == 1 || (route[1] != '/' && route[1] != '\\'));
 }

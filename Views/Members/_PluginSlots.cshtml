@@ -182,7 +182,7 @@ else if (string.Equals(mode, "edit", StringComparison.OrdinalIgnoreCase) && Mode
                             <span class="text-muted small">@tab.PluginDisplayName</span>
                         </div>
                     </div>
-                    @(Html.Raw(tab.Tab.Content))
+                    <div data-plugin-content-module="@tab.ModuleId" data-plugin-content-member="@actionMemberId" data-plugin-content-endpoint="@actionEndpoint">@(Html.Raw(tab.Tab.Content))</div>
                 </div>
             }
         </div>
@@ -235,7 +235,7 @@ else if (string.Equals(mode, "edit-cards", StringComparison.OrdinalIgnoreCase) &
                                 </div>
                             }
                         </div>
-                        @Html.Raw(tab.Tab.Content)
+                        <div data-plugin-content-module="@tab.ModuleId" data-plugin-content-member="@actionMemberId" data-plugin-content-endpoint="@actionEndpoint">@Html.Raw(tab.Tab.Content)</div>
                     </div>
                 </section>
             }
@@ -305,7 +305,7 @@ else if (string.Equals(mode, "edit-cards", StringComparison.OrdinalIgnoreCase) &
                                             }
                                         </div>
                                     }
-                                    @Html.Raw(tab.Tab.Content)
+                                    <div data-plugin-content-module="@tab.ModuleId" data-plugin-content-member="@actionMemberId" data-plugin-content-endpoint="@actionEndpoint">@Html.Raw(tab.Tab.Content)</div>
                                 </div>
                             }
                         </div>

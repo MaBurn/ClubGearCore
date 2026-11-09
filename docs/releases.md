@@ -15,6 +15,7 @@ For what changed in each release, see [`CHANGELOG.md`](../CHANGELOG.md).
 
 | Version | Date | Git ref | Artifact | Summary |
 |---|---|---|---|---|
+| `2026.11.1` | 2026-11-09 | `main` | `clubgear-2026.11.1.tar.gz` | Security: plugin HTML is sanitised before rendering (CORE-31), with host-handled self-service forms and host-owned action routing; plugin contract 1.16.0 adds the acting member (CORE-29). Plugins with inline scripts in their HTML need an update (ServiceBook: SB-04). |
 | `2026.11.0` | 2026-11-09 | `main` | `clubgear-2026.11.0.tar.gz` | Architecture tests decoupled from plugin source and compiling again (plugin tests move to the plugin repositories), verification gate builds the test project, plugin author guides updated to the contract 1.13.0 constructor rule and 1.15.0 icon columns. |
 | `2026.10.0` | 2026-10-26 | `main` | `clubgear-2026.10.0.tar.gz` | Plugin page grouping/column preferences, grouped navigation and multi-page plugin modules, icon list columns, external-login admin entry point, and consolidated plugin backlog tracking. |
 | `2026.7.0` | 2026-07-08 | `main` | `clubgear-2026.7.0.tar.gz` | Deployable core source release with Docker/Podman startup docs, importable image workflow, membership hierarchy support and refreshed architecture documentation. |

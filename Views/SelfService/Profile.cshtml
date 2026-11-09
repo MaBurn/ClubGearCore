@@ -263,12 +263,14 @@
         @foreach (var sv in selfServiceSections.OrderBy(s => s.SortOrder).ThenBy(s => s.ModuleId))
         {
             <div class="card shadow-sm mb-4" id="plugin-selfservice-@sv.Section.Key"
+                 data-selfservice-section
+                 data-module-id="@sv.ModuleId"
                  data-selfservice-action-endpoint="@selfServiceActionEndpoint">
                 <div class="card-header">
                     <h6 class="mb-0">@sv.Section.Title</h6>
                 </div>
                 <div class="card-body">
-                    @Html.Raw(sv.Section.HtmlBody)
+                    <div data-plugin-content-module="@sv.ModuleId">@Html.Raw(sv.Section.HtmlBody)</div>
                 </div>
             </div>
         }
@@ -435,5 +437,85 @@
                 container.insertAdjacentHTML("beforeend", '<p class="text-muted" id="addressesEmptyHint">Noch keine Adresse eingetragen.</p>');
             }
         }
+
+        // CORE-31. Plugin markup is sanitised and carries no script of its own, so the host submits
+        // self-service plugin forms: <form data-action-key="..."> inside a plugin section is posted
+        // as JSON to the section's action endpoint. Everything shown back is set via textContent.
+        document.addEventListener("submit", async function (event) {
+            const form = event.target;
+            const section = form.closest && form.closest("[data-selfservice-section]");
+            if (!section || !form.matches("form[data-action-key]")) {
+                return;
+            }
+
+            event.preventDefault();
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
+            form.querySelectorAll(".is-invalid").forEach(el => el.classList.remove("is-invalid"));
+            form.querySelectorAll("[data-host-field-error], [data-host-form-message]").forEach(el => el.remove());
+
+            const args = {};
+            new FormData(form).forEach((value, key) => {
+                if (key !== "__RequestVerificationToken" && typeof value === "string") {
+                    args[key] = value;
+                }
+            });
+
+            const showMessage = (text, ok) => {
+                const message = document.createElement("div");
+                message.className = "alert mt-2 mb-0 " + (ok ? "alert-success" : "alert-danger");
+                message.setAttribute("data-host-form-message", "");
+                message.textContent = text;
+                form.appendChild(message);
+            };
+
+            const submit = form.querySelector("[type=submit]");
+            if (submit) {
+                submit.disabled = true;
+            }
+
+            try {
+                const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+                const response = await fetch(@Json.Serialize(selfServiceActionEndpoint), {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", RequestVerificationToken: token ?? "" },
+                    body: JSON.stringify({
+                        moduleId: section.dataset.moduleId,
+                        actionKey: form.dataset.actionKey,
+                        arguments: args
+                    })
+                });
+                const payload = await response.json().catch(() => ({}));
+
+                if (response.ok) {
+                    showMessage(payload.message || "Gespeichert.", true);
+                    setTimeout(() => location.reload(), 800);
+                    return;
+                }
+
+                (payload.fieldErrors || []).forEach(error => {
+                    const input = Array.from(form.elements).find(el => el.name === error.fieldKey);
+                    if (!input) {
+                        return;
+                    }
+                    input.classList.add("is-invalid");
+                    const feedback = document.createElement("div");
+                    feedback.className = "invalid-feedback";
+                    feedback.setAttribute("data-host-field-error", "");
+                    feedback.textContent = error.message;
+                    input.insertAdjacentElement("afterend", feedback);
+                });
+                showMessage(payload.message || "Aktion fehlgeschlagen.", false);
+            } catch {
+                showMessage("Aktion fehlgeschlagen.", false);
+            } finally {
+                if (submit) {
+                    submit.disabled = false;
+                }
+            }
+        });
     </script>
 }

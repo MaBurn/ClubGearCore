@@ -35,6 +35,15 @@ public interface IMemberFeatureService
 
     Task<Member?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Read-only: the member explicitly linked to this login (<see cref="Member.ApplicationUserId"/>).
+    /// Unlike self-service, this never links a member by e-mail as a side effect.
+    /// </summary>
+    Task<int?> FindLinkedMemberIdAsync(string applicationUserId, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<int?>(null);
+    }
+
     Task<IReadOnlyList<MemberReferenceOption>> SearchForReferenceAsync(string? query, int limit = 10, CancellationToken cancellationToken = default)
     {
         return Task.FromResult<IReadOnlyList<MemberReferenceOption>>(Array.Empty<MemberReferenceOption>());

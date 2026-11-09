@@ -11,6 +11,36 @@ public interface IPluginHostContext
     IPluginDataStore Persistence { get; }
 
     IPluginPermissionFacade Permissions { get; }
+
+    /// <summary>
+    /// Contract 1.16.0. Who is acting in this call: the member linked to the signed-in user.
+    /// The host binds it from the authenticated principal when it builds the context; a plugin
+    /// cannot set it, and must never take an acting identity from command arguments instead.
+    /// </summary>
+    /// <remarks>
+    /// The default implementation answers <c>null</c>, so plugin test doubles written against
+    /// 1.15.0 keep compiling.
+    /// </remarks>
+    IPluginActorFacade Actor => NoPluginActor.Instance;
+}
+
+/// <summary>Contract 1.16.0. See <see cref="IPluginHostContext.Actor"/>.</summary>
+public interface IPluginActorFacade
+{
+    /// <summary>
+    /// The id of the member linked to the signed-in user, usable with
+    /// <see cref="IPluginMemberReader.GetByIdAsync"/>. <c>null</c> when nobody is signed in, when
+    /// the user has no linked member, and in host-initiated calls such as background jobs.
+    /// </summary>
+    Task<int?> GetMemberIdAsync(CancellationToken cancellationToken = default);
+}
+
+internal sealed class NoPluginActor : IPluginActorFacade
+{
+    public static readonly NoPluginActor Instance = new();
+
+    public Task<int?> GetMemberIdAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult<int?>(null);
 }
 
 public interface IPluginPermissionFacade

@@ -2,8 +2,11 @@ namespace ClubGear.Plugin.Contracts;
 
 public static class ContractVersion
 {
-    public static readonly Version Current = new(1, 15, 0);
+    public static readonly Version Current = new(1, 16, 0);
 
+    // 1.16.0 only adds IPluginHostContext.Actor (with a default implementation) and the new
+    // IPluginActorFacade, so a plugin can learn which member is acting. Nothing changes shape,
+    // so the compatibility floor stays put.
     // 1.15.0 only adds an init-only IsIconColumn to PluginPageColumn, so a plugin page's list and
     // detail views can render one column as a Bootstrap Icon instead of text. The existing
     // positional constructor is unchanged, so the compatibility floor stays put.

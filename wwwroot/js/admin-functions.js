@@ -270,16 +270,16 @@
 
     function renderField(field) {
       var wrapperClass = field.inputType === 'MultilineText' ? 'col-12' : 'col-12 col-md-6';
-      var fieldId = 'plugin-command-' + field.key;
+      var fieldId = 'plugin-command-' + escapeHtml(field.key);
       var constraints = field.constraints || {};
       var requiredAttr = field.required ? ' required' : '';
       var placeholderAttr = hasValue(field.placeholder) ? ' placeholder="' + escapeHtml(field.placeholder) + '"' : '';
       var helpText = hasValue(field.helpText) ? '<div class="form-text">' + escapeHtml(field.helpText) + '</div>' : '';
       var label = escapeHtml(field.label) + (field.required ? ' <span class="text-danger">*</span>' : '');
-      var minLengthAttr = hasValue(constraints.minLength) ? ' minlength="' + constraints.minLength + '"' : '';
-      var maxLengthAttr = hasValue(constraints.maxLength) ? ' maxlength="' + constraints.maxLength + '"' : '';
-      var minAttr = hasValue(constraints.min) ? ' min="' + constraints.min + '"' : '';
-      var maxAttr = hasValue(constraints.max) ? ' max="' + constraints.max + '"' : '';
+      var minLengthAttr = hasValue(constraints.minLength) ? ' minlength="' + escapeHtml(constraints.minLength) + '"' : '';
+      var maxLengthAttr = hasValue(constraints.maxLength) ? ' maxlength="' + escapeHtml(constraints.maxLength) + '"' : '';
+      var minAttr = hasValue(constraints.min) ? ' min="' + escapeHtml(constraints.min) + '"' : '';
+      var maxAttr = hasValue(constraints.max) ? ' max="' + escapeHtml(constraints.max) + '"' : '';
       var regexAttr = hasValue(constraints.regexPattern) ? ' pattern="' + escapeHtml(constraints.regexPattern) + '"' : '';
       var dateMinAttr = hasValue(constraints.dateMin) ? ' min="' + escapeHtml(constraints.dateMin) + '"' : '';
       var dateMaxAttr = hasValue(constraints.dateMax) ? ' max="' + escapeHtml(constraints.dateMax) + '"' : '';

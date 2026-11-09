@@ -65,6 +65,14 @@ last-wins registration, so this item cannot be finished before the provider seam
 admin-selected precedence rule land — both are defined in
 [`core-platform.md`](core-platform.md).
 
+**Contract-facing half (requested by Redaktion/EDIT-01, 2026-11-09).** The storage service alone
+does not reach a plugin. `PluginSchemaFieldType` has no `File`/`Image` member, and nothing hands
+an uploaded file to `ExecuteCommandAsync`. CORE-02 includes an additive field type with
+host-enforced size and MIME limits from the field schema. The host stores the upload through this
+service and passes the plugin an **opaque storage reference** in `arguments`, never raw bytes or a
+path. Consumers: Redaktion (images, Markdown files), Inventar item photos, CarInfo and ServiceBook
+documents, NEWS-01 attachments. Without this half, CORE-02 does not unblock any plugin.
+
 ## CORE-04 — Notification inbox, status and preferences
 
 **Status `partial` · Priority P1 · Owner `core`.**

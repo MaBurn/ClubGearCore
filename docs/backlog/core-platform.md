@@ -43,6 +43,11 @@ additive rather than a contract break.
 | CORE-25 | Secure first-run installation assistant | `open` | P1 | `core` | July 2026 install plan | R8: bootstrap identity, system configuration and global pre-install routing are host responsibilities. | [`inbox/install/2026-07-install-assistant.md`](inbox/install/2026-07-install-assistant.md), `Models/SystemConfigEntry.cs`, `Program.cs` |
 | CORE-27 | Plugin authoring guide and project template | `open` | P2 | `core` | CG-BL-050, CG-BL-051 | R7: the host repository owns the contract, packaging script and compliant repository scaffold. | `docs/plugin-contract.md`, `scripts/package-plugin.sh`, [`README.md`](README.md) crosswalk |
 | CORE-28 | Architecture tests fail to compile against a plugin's checked-out working tree, not its declared contract floor | `delivered` | P1 | `core` | found 2026-10-03 while verifying the PageKey routing fix (contract 1.14.0) | R6: only the host can decide what a plugin build is allowed to assume about core test compilation; today it assumes the exact source on disk. | `tests/ClubGear.ArchitectureTests/ClubGear.ArchitectureTests.csproj` (`ProjectReference` to `plugins/CarInfo`, `plugins/Finance`, `plugins/Inventar`, `plugins/ServiceBook`), `CarInfoSlice1-5Tests.cs`, `FinanceSlice6-8*Tests.cs`, `PluginSlice3GroupKeyTests.cs`, `PluginNavEntryServiceTests.cs` |
+| CORE-29 | Acting member on plugin page commands and rows | `delivered` | **P1** | `core` | Redaktion plugin (EDIT-01), 2026-11-09 | R8: a submission, a loan, a rental request or a "my items" view all need to know who is acting — several unrelated plugins, so a contract capability, not plugin code. | `Contracts/Plugin/IPluginHostContext.cs`, `Contracts/Plugin/IPluginPageProvider.cs` |
+| CORE-30 | Command form schema that depends on the selected entity | `open` | P2 | `core` | Redaktion plugin (EDIT-01), 2026-11-09 | R8: runtime-configured fields per type or category are a general pattern, not one plugin's workflow. | `Contracts/Plugin/IPluginPageProvider.cs` (`PluginPageCommand.Schema`, `GetPageDefinitionAsync`) |
+| CORE-31 | Plugin-supplied raw HTML rendered unsanitised | `partial` | **P1** | `core` | Redaktion plugin report, verified by core 2026-11-09 | Security: GR-008 says raw plugin HTML must not be trusted by default; only the host can enforce that. | `Views/SelfService/Profile.cshtml:271`, `Views/Members/_PluginSlots.cshtml:185,238,308`, `Contracts/Plugin/ISelfServiceProfileSectionProvider.cs:20`, `Contracts/Plugin/IMemberEditTabProvider.cs:14` |
+| CORE-32 | Read access to a declared dependency's data | `open` | P2 | `core` | ServiceBook (SB-04), CarInfo audit, 2026-11-09 | R5/R8: plugins that build on each other (ServiceBook→CarInfo vehicles) need a supported read path; today the only one was another plugin's DOM, which CORE-31 removed. | `Contracts/Plugin/IPluginHostContext.cs`, `PluginDependency`, CORE-13 provider seam |
+| CORE-33 | Generic plugin pages: prefilled command forms and confirmation | `open` | P2 | `core` | ServiceBook (SB-04), 2026-11-09 | R8: every page with edit/delete commands needs it; member actions already have both. | `Views/PluginPage/_PluginPageActionModal.cshtml`, `PluginPageCommand`, `PluginFieldSchema` |
 
 Fourteen items. No ID on this page appears in `core-capabilities.md` or `plugins.md`.
 
@@ -496,3 +501,150 @@ Not blocking any shipped behaviour today — the main `ClubGear.csproj` build st
 because it does not reference plugin source. Blocking: any `dotnet test` run against current
 source, and therefore the `Stop` hook's and `CLAUDE.md`'s own verification gate, the moment someone
 actually rebuilds instead of trusting a cached `.dll`.
+
+## CORE-29 — Acting member on plugin page commands and rows
+
+**Status `delivered` (2026-11-09, contract 1.16.0) · Priority P1 · Owner `core`.** Requested by the
+Redaktion plugin (EDIT-01) on 2026-11-09.
+
+**Delivered as** `IPluginHostContext.Actor` → `IPluginActorFacade.GetMemberIdAsync()`, documented in
+`docs/plugin-contract.md` under 1.16.0 and tested by
+`tests/ClubGear.ArchitectureTests/PluginActorFacadeTests.cs`. The description below is the original
+request.
+
+**Gap.** A plugin page provider cannot tell who is acting. `ExecuteCommandAsync` and `GetRowsAsync`
+receive an `IPluginHostContext`, whose `Permissions` facade evaluates the current user's rights
+internally, but nothing on the context exposes *which* member that user is. A plugin that records
+"submitted by", shows "my submissions" or "my loans", or checks "is this my own entry" has no
+supported way to do it.
+
+**Consumers.** Redaktion: submitting member of an article, "see own submissions". Also needed by
+INV-01 lending, RENT-01 requests and orders, and TREE-01 guided sessions — independent plugins,
+which is what makes this core (R8).
+
+**Constraints for the design.**
+
+- The identity comes from the host's authenticated principal, bound when the activator builds the
+  context. A plugin must never be able to take it from command arguments or the query string.
+- Expose the member id (and at most what `PluginMemberSummary` already carries), not the
+  `ApplicationUser`, claims or tokens. A user without a linked member yields `null`.
+- Additive contract change (minor bump, `MinimumSupported` unchanged), per
+  `docs/plugin-contract.md`. A design and approval follow ADR 0001 before code.
+
+## CORE-30 — Command form schema that depends on the selected entity
+
+**Status `open` · Priority P2 · Owner `core`.** Requested by the Redaktion plugin on 2026-11-09.
+
+`PluginPageCommand.Schema` is fixed per page: `GetPageDefinitionAsync` receives no entity key, and
+the set of pages is fixed at registration. A command's form therefore cannot follow the selected
+row. Redaktion needs the "submit article" form to show the fields of the selected issue's format,
+and the editorial team configures those fields at runtime.
+
+Not blocking. Workaround: a union schema with every field optional, validated per format through
+`PluginFieldError`. The cost is UX: members see fields that don't belong to their format.
+
+Likely shape: an additive provider method with a default implementation, e.g.
+`GetCommandSchemaAsync(context, commandKey, entityKey, ct)`, falling back to the static `Schema`.
+Minor contract bump, no break. Other consumers are likely (custom fields per category or type) but
+haven't been checked.
+
+## CORE-31 — Plugin-supplied raw HTML rendered unsanitised
+
+**Status `partial` · Priority P1 · Owner `core`.** Reported by the Redaktion session, verified by core
+on 2026-11-09.
+
+**Delivered 2026-11-09 (strict mode, product-owner decision).**
+
+- The host sanitiser `Services/Core/PluginHtml.cs` (HtmlSanitizer) is applied in
+  `MemberPluginSlotService` and `SelfServiceSectionService`.
+- Host-handled self-service forms (`form[data-action-key]`) in `Views/SelfService/Profile.cshtml`.
+  This also repairs Finance's IBAN form, which never had a submit handler.
+- App-relative nav routes are enforced in `PluginNavEntryService`.
+- Schema field keys are escaped in the plugin JS.
+- `PluginHtmlSanitisationTests` guards all of this, including an allowlist of every `Html.Raw` in
+  the views.
+
+**Still open:** a nonce-based Content-Security-Policy, structured sections and tabs instead of HTML
+(GR-008), and the antiforgery question on `SelfService_API`. Plugin adoption is tracked as SB-04,
+FIN-04 and CAR-04 in [`plugins.md`](plugins.md).
+
+Two contract members carry HTML that the host renders with `@Html.Raw` and no sanitising:
+`SelfServiceProfileSection.HtmlBody` (`Views/SelfService/Profile.cshtml:271`) and
+`MemberEditTabSlot.Content` (`Views/Members/_PluginSlots.cshtml:185,238,308`). Core contains no
+HTML sanitiser. That contradicts GR-008 in ADR 0001 ("Raw plugin HTML MUST NOT be trusted by
+default") and the security guidance.
+
+**Risk.** A signed plugin already runs code inside the host, so the plugin itself is not the
+attacker. The risk is data a plugin echoes: a value a member entered, returned unescaped in
+`Content`/`HtmlBody`, becomes stored XSS for whoever opens that profile or edit tab, often an
+administrator. Today the only barrier is each plugin author's escaping discipline.
+
+**Options.** (a) Sanitise on the host before rendering, against an allowlist of tags and attributes.
+Fast, no contract change, but needs a vetted sanitiser dependency. (b) Replace the HTML members
+with structured content the host renders, as GR-008 intends. That is a breaking contract change
+with a deprecation path. Recommendation: (a) now as the guard, (b) as the long-term direction.
+Needs a security review before implementation.
+
+**Security review, 2026-11-09 (read-only, plugin sources not inspected).** Severity **Medium**. It
+rises to High once a shipped plugin is confirmed to echo member-entered data unencoded; only plugin
+owners can confirm that.
+
+- **Sinks.** The four above, plus the admin edit modal, which loads the same partial through
+  `container.innerHTML` (`Views/Members/Index.cshtml:399`). There `<script>` does not run, but
+  `on*` handlers do, and injected script can read the page's antiforgery token.
+- **No defence in depth.** No Content-Security-Policy, `X-Content-Type-Options` or
+  `X-Frame-Options`. The cookie keeps the framework defaults (HttpOnly, SameSite=Lax).
+- **HTML is in real use.** Finance's self-service `<form>` lives inside `HtmlBody`
+  (`tests/ClubGear.ArchitectureTests/Layout/LayoutNavigationTests.cs:83`) and probably posts via
+  its own inline script. A sanitiser that strips `<script>` breaks it unless the host first
+  delegates `form[data-selfservice-action]` submissions itself.
+- **Lower findings.**
+  - Nav routes are not checked for a `javascript:` scheme
+    (`Services/Core/PluginNavEntryService.cs`, `Views/Shared/_Layout.cshtml:96,109`).
+  - Schema field keys go unescaped into `id`/`for` before `innerHTML` (`wwwroot/js/site.js:280,333`,
+    `wwwroot/js/admin-functions.js:273`, `Views/PluginPage/_PluginPageActionModal.cshtml:158,215`).
+  - Both are static plugin data.
+- **Not assessed.** `Controllers/SelfService/SelfService_API.cs:52,126` has no
+  `[ValidateAntiForgeryToken]` and relies on the JSON content type plus SameSite=Lax.
+
+Recommended plan:
+
+1. A host-side allowlist sanitiser (`HtmlSanitizer`/Ganss.Xss, MIT) applied in the slot and section
+   services that keeps forms and inputs and strips scripts, styles, `on*` handlers and
+   `javascript:`/`data:` URLs.
+2. Host-delegated self-service form submission first, so Finance keeps working.
+3. Route and field-key validation.
+4. Later, a nonce-based CSP, and structured sections and tabs (GR-008).
+
+## CORE-32 — Read access to a declared dependency's data
+
+**Status `open` · Priority P2 · Owner `core`.** Reported by the ServiceBook session on 2026-11-09
+while adopting CORE-31 (SB-04).
+
+ServiceBook declares a dependency on CarInfo and needs its vehicles. Until now it read them in the
+browser from CarInfo's markup (`data-carinfo-vehicles`). That path ended with CORE-31, and it was
+never a contract.
+
+None of the current routes reach another plugin's data:
+
+- `IPluginDataStore` is limited to the plugin's own table prefix.
+- `PluginDependency` only gates activation.
+- `IPluginHostContext` has no way to call another plugin's provider.
+
+ServiceBook now records the CarInfo id by hand. The likely shape is the CORE-13 provider seam with
+provider-to-provider consumption (CORE-13 increment 2, item 1): a dependency exposes a read
+capability, and the dependent plugin resolves it through the host. This needs ADR 0001 approval.
+
+## CORE-33 — Generic plugin pages: prefilled command forms and confirmation
+
+**Status `open` · Priority P2 · Owner `core`.** Reported by the ServiceBook session on 2026-11-09.
+
+Two gaps on generic plugin pages:
+
+- A page command cannot pre-fill its form from row values, as member actions can through
+  `CommandArguments`, and `PluginFieldSchema` has no default value.
+- A destructive command cannot ask for confirmation: `data-command-confirm` is never rendered.
+
+ServiceBook therefore uses member actions instead of a page. Both gaps are additive contract and
+host work.
+

@@ -163,6 +163,10 @@ before either of them completes.
 ```
 CORE-01 → EDIT-01
 CORE-05 → EDIT-01
+CORE-14 → CORE-02 → EDIT-01   (images and Markdown files)
+CORE-15 → EDIT-01             (Nextcloud credentials)
+CORE-04 → EDIT-01             (status-change notifications)
+CORE-29 → EDIT-01             (who submitted)
 CMS-01  (independent; no core item blocks it)
 NC-DOC-01 / NEWS-01 → EDIT-01   (optional integrations, not prerequisites)
 ```

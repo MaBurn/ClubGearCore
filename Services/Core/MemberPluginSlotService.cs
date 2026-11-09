@@ -238,7 +238,7 @@ public sealed class MemberPluginSlotService : IMemberPluginSlotService
             tabs.AddRange(resolved.Select(tab => new MemberPluginEditTabView(
                 runtime.ModuleId,
                 runtime.DisplayName,
-                tab,
+                tab with { Content = PluginHtml.SanitizeEditTab(tab.Content) },
                 contribution.Order + tab.Order)
             {
                 GroupKey = tab.GroupKey,

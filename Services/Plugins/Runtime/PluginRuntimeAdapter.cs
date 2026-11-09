@@ -57,7 +57,8 @@ public sealed class PluginRuntimeAdapter : IPluginRuntimeAdapter
             _memberFeatureService,
             CreateDataStore(pluginModule.Manifest),
             (request, cancellationToken) => ExecuteMemberActionAsync(pluginModule.Manifest.ModuleId, request, user, cancellationToken),
-            (permissionKey, cancellationToken) => bridgeHolder!.HasPermissionAsync(permissionKey, cancellationToken));
+            (permissionKey, cancellationToken) => bridgeHolder!.HasPermissionAsync(permissionKey, cancellationToken),
+            cancellationToken => ResolveActingMemberIdAsync(user, cancellationToken));
 
         var bridge = new PluginRuntimeBridge(
             pluginModule,
@@ -71,7 +72,22 @@ public sealed class PluginRuntimeAdapter : IPluginRuntimeAdapter
         return bridge;
     }
 
-    private async Task<PluginMemberActionResult> ExecuteMemberActionAsync(
+    /// <summary>
+    /// CORE-29. The acting member comes only from the authenticated principal the host built this
+    /// bridge for. The system principal and anonymous callers carry no user id and get null.
+    /// </summary>
+    private Task<int?> ResolveActingMemberIdAsync(ClaimsPrincipal user, CancellationToken cancellationToken)
+    {
+        var userId = user.Identity?.IsAuthenticated == true
+            ? user.FindFirstValue(ClaimTypes.NameIdentifier)
+            : null;
+
+        return string.IsNullOrWhiteSpace(userId)
+            ? Task.FromResult<int?>(null)
+            : _memberFeatureService.FindLinkedMemberIdAsync(userId, cancellationToken);
+    }
+
+        private async Task<PluginMemberActionResult> ExecuteMemberActionAsync(
         string moduleId,
         PluginMemberActionRequest request,
         ClaimsPrincipal user,

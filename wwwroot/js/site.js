@@ -132,8 +132,19 @@ document.addEventListener('change', function (event) {
         return document.getElementById('member-plugin-action-modal');
     }
 
+    // CORE-31. Buttons inside plugin content take module, member and endpoint only from the host
+    // wrapper around that content; the sanitiser strips those attributes from plugin markup, so a
+    // plugin cannot redirect an action or act as another plugin. Host-rendered buttons sit outside
+    // any wrapper and keep their own attributes.
+    function getContentWrapper(button) {
+        return button && button.closest ? button.closest('[data-plugin-content-module]') : null;
+    }
+
     function getActionEndpoint(button) {
-        var buttonEndpoint = button ? button.getAttribute('data-plugin-action-endpoint') : null;
+        var wrapper = getContentWrapper(button);
+        var buttonEndpoint = wrapper
+            ? wrapper.getAttribute('data-plugin-content-endpoint')
+            : (button ? button.getAttribute('data-plugin-action-endpoint') : null);
         if (buttonEndpoint) {
             return buttonEndpoint;
         }
@@ -192,12 +203,16 @@ document.addEventListener('change', function (event) {
 
     function buildPayload(button, schema) {
         var payload = {
-            moduleId: button.getAttribute('data-plugin-module-id'),
+            moduleId: getContentWrapper(button)
+                ? getContentWrapper(button).getAttribute('data-plugin-content-module')
+                : button.getAttribute('data-plugin-module-id'),
             actionKey: button.getAttribute('data-plugin-action-key'),
             arguments: parseActionArguments(button)
         };
 
-        var memberId = button.getAttribute('data-plugin-member-id');
+        var memberId = getContentWrapper(button)
+            ? getContentWrapper(button).getAttribute('data-plugin-content-member')
+            : button.getAttribute('data-plugin-member-id');
         if (memberId) {
             payload.memberId = Number(memberId);
         }
@@ -277,17 +292,17 @@ document.addEventListener('change', function (event) {
 
     function renderField(field) {
         var wrapperClass = field.inputType === 'MultilineText' ? 'col-12' : 'col-12 col-md-6';
-        var fieldId = 'plugin-action-' + field.key;
+        var fieldId = 'plugin-action-' + escapeHtml(field.key);
         var constraints = field.constraints || {};
         var requiredAttr = field.required ? ' required' : '';
         var placeholderAttr = hasValue(field.placeholder) ? ' placeholder="' + escapeHtml(field.placeholder) + '"' : '';
         var defaultValueAttr = hasValue(field.defaultValue) ? ' value="' + escapeHtml(field.defaultValue) + '"' : '';
         var helpText = hasValue(field.helpText) ? '<div class="form-text">' + escapeHtml(field.helpText) + '</div>' : '';
         var label = escapeHtml(field.label) + (field.required ? ' <span class="text-danger">*</span>' : '');
-        var minLengthAttr = hasValue(constraints.minLength) ? ' minlength="' + constraints.minLength + '"' : '';
-        var maxLengthAttr = hasValue(constraints.maxLength) ? ' maxlength="' + constraints.maxLength + '"' : '';
-        var minAttr = hasValue(constraints.min) ? ' min="' + constraints.min + '"' : '';
-        var maxAttr = hasValue(constraints.max) ? ' max="' + constraints.max + '"' : '';
+        var minLengthAttr = hasValue(constraints.minLength) ? ' minlength="' + escapeHtml(constraints.minLength) + '"' : '';
+        var maxLengthAttr = hasValue(constraints.maxLength) ? ' maxlength="' + escapeHtml(constraints.maxLength) + '"' : '';
+        var minAttr = hasValue(constraints.min) ? ' min="' + escapeHtml(constraints.min) + '"' : '';
+        var maxAttr = hasValue(constraints.max) ? ' max="' + escapeHtml(constraints.max) + '"' : '';
         var regexAttr = hasValue(constraints.regexPattern) ? ' pattern="' + escapeHtml(constraints.regexPattern) + '"' : '';
         var dateMinAttr = hasValue(constraints.dateMin) ? ' min="' + escapeHtml(constraints.dateMin) + '"' : '';
         var dateMaxAttr = hasValue(constraints.dateMax) ? ' max="' + escapeHtml(constraints.dateMax) + '"' : '';
@@ -330,7 +345,7 @@ document.addEventListener('change', function (event) {
         }
 
         if (field.inputType === 'Combo') {
-            var listId = 'dl-' + field.key;
+            var listId = 'dl-' + escapeHtml(field.key);
             var comboOptions = Array.isArray(field.options)
                 ? field.options.map(function (option) {
                     return '<option value="' + escapeHtml(option.value) + '">' + escapeHtml(option.label) + '</option>';

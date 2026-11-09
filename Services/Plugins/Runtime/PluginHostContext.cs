@@ -11,7 +11,8 @@ public sealed class PluginHostContext : IPluginHostContext
         IMemberFeatureService memberFeatureService,
         IPluginDataStore persistence,
         Func<PluginMemberActionRequest, CancellationToken, Task<PluginMemberActionResult>>? executeMemberActionAsync = null,
-        Func<string, CancellationToken, Task<bool>>? permissionResolver = null)
+        Func<string, CancellationToken, Task<bool>>? permissionResolver = null,
+        Func<CancellationToken, Task<int?>>? actingMemberResolver = null)
     {
         ArgumentNullException.ThrowIfNull(manifest);
         ArgumentNullException.ThrowIfNull(memberFeatureService);
@@ -24,6 +25,7 @@ public sealed class PluginHostContext : IPluginHostContext
         Permissions = permissionResolver is not null
             ? new PluginPermissionFacade(permissionResolver)
             : new NullPluginPermissionFacade();
+        Actor = new PluginActorFacade(actingMemberResolver);
     }
 
     public IPluginMetadataFacade Metadata { get; }
@@ -35,6 +37,8 @@ public sealed class PluginHostContext : IPluginHostContext
     public IPluginDataStore Persistence { get; }
 
     public IPluginPermissionFacade Permissions { get; }
+
+    public IPluginActorFacade Actor { get; }
 
     private sealed class PluginMetadataFacade : IPluginMetadataFacade
     {
@@ -147,5 +151,18 @@ public sealed class PluginHostContext : IPluginHostContext
     {
         public Task<bool> HasPermissionAsync(string permissionKey, CancellationToken cancellationToken = default)
             => Task.FromResult(false);
+    }
+
+    private sealed class PluginActorFacade : IPluginActorFacade
+    {
+        private readonly Func<CancellationToken, Task<int?>>? _resolver;
+
+        public PluginActorFacade(Func<CancellationToken, Task<int?>>? resolver)
+        {
+            _resolver = resolver;
+        }
+
+        public Task<int?> GetMemberIdAsync(CancellationToken cancellationToken = default)
+            => _resolver is null ? Task.FromResult<int?>(null) : _resolver(cancellationToken);
     }
 }

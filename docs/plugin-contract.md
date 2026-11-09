@@ -36,7 +36,78 @@ constructor arity, and a plugin compiled against the old arity fails at load tim
 
 `MinimumSupported` moves only when an old shape is actually **removed**. Adding never moves it.
 
+## Host rendering rules (CORE-31)
+
+These are host behaviour, not contract shape, so they carry no contract version. They apply from
+core 2026.11.x.
+
+**Plugin HTML is sanitised.** `MemberEditTabSlot.Content` and `SelfServiceProfileSection.HtmlBody`
+pass a strict allowlist (`Services/Core/PluginHtml.cs`) before any view renders them.
+
+- Text, layout, tables, lists, links (http/https/mailto/relative), images and form controls survive,
+  together with `class`, `id`, `data-*` and `aria-*`.
+- `<script>` (including `type="application/json"`), `<style>`, frames, `on*` attributes, `style`
+  attributes and `javascript:`/`data:` URLs are removed.
+- A plugin that needs behaviour uses host-rendered surfaces: member actions with schemas, generic
+  plugin pages, admin panels.
+- **Edit tabs have no form controls.** `MemberEditTabSlot.Content` renders inside the host's member
+  edit form, so `form`, `input`, `select`, `option`, `textarea`, `datalist` and `output` are
+  removed there. `<button>` stays, forced to `type="button"` and without `name`/`value`, for host
+  action buttons (`data-plugin-member-action`). A button inside plugin content always acts for the
+  plugin that rendered the tab. Form controls are allowed only in self-service sections.
+- **Ids are prefixed.** Every `id` becomes `plugin-content-<id>`, together with the attributes that
+  reference ids (`for`, `list`, `aria-labelledby`/`-describedby`/…, `href="#…"`). References within
+  plugin markup keep working; plugin markup cannot shadow host elements.
+- **Host-reserved attributes are removed:** `data-selfservice-*`, `data-module-id`, `data-host-*`,
+  `data-plugin-content-*`, `data-plugin-action-endpoint`, `data-plugin-module-id` and
+  `data-plugin-member-id`. For an action button inside plugin content, the host takes the module,
+  the member and the endpoint from its own wrapper around the content. A plugin button therefore
+  sets only `data-plugin-member-action`, `data-plugin-action-key` and optionally
+  `-schema`/`-arguments`/`-label`/`-confirm`.
+
+**Encoding stays the plugin's job.** Sanitising removes active content, but it cannot tell a value
+a member typed from markup the plugin meant. HTML-encode every user- or database-derived value you
+interpolate.
+
+**Host-handled self-service forms.** Inside a self-service section, the host submits
+`<form data-action-key="KEY">` as JSON
+`{ moduleId, actionKey: KEY, arguments: { <input name>: <value> } }` to
+`POST /api/self-service/plugin-self-service-actions`. That ends up in the provider's
+`ExecuteSelfServiceActionAsync`.
+
+- On success the host shows the result message and reloads.
+- `PluginFieldError.FieldKey` must equal an input `name` for the error to appear next to that input.
+- No plugin script is needed.
+
+**Navigation routes must be app-relative.** A `PluginNavEntry.Route` that does not start with a
+single `/` is not shown.
+
 ## Version history
+
+### 1.16.0 — the acting member (CORE-29)
+
+A plugin can now learn which member is acting in a call. `IPluginHostContext.Actor` returns an
+`IPluginActorFacade` whose `GetMemberIdAsync()` yields the id of the member linked to the signed-in
+user. Pass it to `Members.GetByIdAsync` for details.
+
+```csharp
+var memberId = await context.Actor.GetMemberIdAsync(ct);
+if (memberId is null)
+{
+    return new PluginCommandResult(false, "forbidden", "Nur fuer angemeldete Mitglieder.");
+}
+```
+
+The host binds the identity from the authenticated principal when it builds the context, and
+resolves it only through the explicit `Member.ApplicationUserId` link. It never links a member by
+e-mail on this path. The result is `null` when nobody is signed in, when the user has no linked
+member, and in host-initiated calls such as background jobs or contribution construction. A plugin
+must never take an acting identity from command arguments, which the browser controls.
+
+**Added:** `IPluginHostContext.Actor` with a default implementation that returns `null`, and the
+interface `IPluginActorFacade`. Plugin test doubles that implement `IPluginHostContext` keep
+compiling, and compiled plugins keep loading, so `MinimumSupported` remains `1.13.0`. A plugin that
+calls `Actor` declares `requiredCoreVersion: ">=1.16.0"`.
 
 ### 1.15.0 — icon columns on generic plugin pages
 
