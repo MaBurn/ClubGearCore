@@ -47,8 +47,13 @@ public sealed class PluginLoadTimeIsolationTests
     }
 
     [Fact]
-    public void Scanner_DoesNotTrip_OnAllowedFixtures_OrOnTheReferencedPluginAssemblies()
+    public void Scanner_DoesNotTrip_OnAllowedFixtures()
     {
+        // The real plugin assemblies are no longer referenced here: plugins are independent
+        // repositories and test themselves. Real plugins are still covered by the loader's own
+        // load-time scan (Loader_* tests below) and by the source scan over plugins/** in
+        // PluginBoundaryTests.
+        //
         // Exported types only, on purpose: the load-time gate sees the entry point and the declared
         // contribution types, both of which a plugin must make public. Compiler-generated async
         // state machines and closure classes are not declared contributions — they are reached only
@@ -57,10 +62,6 @@ public sealed class PluginLoadTimeIsolationTests
             .GetExportedTypes()
             .Where(type => type.Namespace is not null
                 && type.Namespace.StartsWith("ClubGear.ArchitectureTests.Plugins", StringComparison.Ordinal))
-            .Concat(PublicTypesOf(typeof(ClubGear.Plugin.CarInfo.CarInfoPluginModule).Assembly))
-            .Concat(PublicTypesOf(typeof(ClubGear.Plugin.Inventar.InventarPluginModule).Assembly))
-            .Concat(PublicTypesOf(typeof(ClubGear.Plugin.ServiceBook.ServiceBookPluginModule).Assembly))
-            .Concat(PublicTypesOf(typeof(ClubGear.Plugin.Finance.FinancePluginModule).Assembly))
             .ToArray();
 
         Assert.NotEmpty(cleanTypes);
@@ -194,9 +195,6 @@ public sealed class PluginLoadTimeIsolationTests
             refused.LastError!,
             StringComparison.Ordinal);
     }
-
-    private static IEnumerable<Type> PublicTypesOf(Assembly assembly)
-        => assembly.GetExportedTypes();
 
     private static async Task<Fixture> CreateFixtureAsync()
     {

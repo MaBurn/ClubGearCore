@@ -3,10 +3,14 @@ using System.Text;
 using System.Text.Json;
 using ClubGear.Controllers;
 using ClubGear.Controllers.Api;
+using ClubGear.Models;
 using ClubGear.Plugin.Contracts;
 using ClubGear.Services.Abstractions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace ClubGear.ArchitectureTests;
@@ -314,7 +318,7 @@ public sealed class PluginPageControllerTests
 
     private static PluginPageController CreateMvcController(IPluginPageService service, params string[] permissions)
     {
-        return new PluginPageController(service)
+        return new PluginPageController(service, new NoColumnPreferences(), SharedUserManager)
         {
             ControllerContext = new ControllerContext
             {
@@ -328,7 +332,7 @@ public sealed class PluginPageControllerTests
 
     private static PluginPageApiController CreateApiController(IPluginPageService service, params string[] permissions)
     {
-        return new PluginPageApiController(service)
+        return new PluginPageApiController(service, new NoColumnPreferences(), SharedUserManager)
         {
             ControllerContext = new ControllerContext
             {
@@ -423,5 +427,50 @@ public sealed class PluginPageControllerTests
             return Task.FromResult(PluginPageResult<PluginPageRows>.Success(
                 new PluginPageRows(rows, rows.Count)));
         }
+    }
+
+    /// <summary>No stored preference: the view falls back to its default column visibility.</summary>
+    private sealed class NoColumnPreferences : IPluginPageColumnPreferenceService
+    {
+        public Task<IReadOnlySet<string>?> GetHiddenColumnsAsync(
+            string userId, string moduleId, string pageKey, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlySet<string>?>(null);
+
+        public Task SetHiddenColumnsAsync(
+            string userId, string moduleId, string pageKey, IReadOnlyCollection<string> hiddenColumns,
+            CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// The controllers only call <see cref="UserManager{TUser}.GetUserId"/>, which reads the
+    /// principal's claims and never touches the store, so one shared, stateless instance is enough.
+    /// </summary>
+    private static readonly UnusedUserStore SharedUserStore = new();
+
+    private static readonly UserManager<ApplicationUser> SharedUserManager = new(
+            SharedUserStore,
+            Options.Create(new IdentityOptions()),
+            new PasswordHasher<ApplicationUser>(),
+            Array.Empty<IUserValidator<ApplicationUser>>(),
+            Array.Empty<IPasswordValidator<ApplicationUser>>(),
+            new UpperInvariantLookupNormalizer(),
+            new IdentityErrorDescriber(),
+            null!,
+            NullLogger<UserManager<ApplicationUser>>.Instance);
+
+    private sealed class UnusedUserStore : IUserStore<ApplicationUser>
+    {
+        public void Dispose() { }
+        public Task<string> GetUserIdAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
+        public Task<string?> GetUserNameAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
+        public Task SetUserNameAsync(ApplicationUser user, string? userName, CancellationToken ct) => throw new NotSupportedException();
+        public Task<string?> GetNormalizedUserNameAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
+        public Task SetNormalizedUserNameAsync(ApplicationUser user, string? normalizedName, CancellationToken ct) => throw new NotSupportedException();
+        public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
+        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
+        public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
+        public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken ct) => throw new NotSupportedException();
+        public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken ct) => throw new NotSupportedException();
     }
 }

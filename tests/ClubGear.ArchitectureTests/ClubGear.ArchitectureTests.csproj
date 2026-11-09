@@ -28,10 +28,6 @@
   <ItemGroup>
     <ProjectReference Include="../../ClubGear.csproj" />
     <ProjectReference Include="../../Contracts/Plugin/ClubGear.Plugin.Contracts.csproj" />
-    <ProjectReference Include="../../plugins/CarInfo/CarInfo.Plugin.csproj" />
-    <ProjectReference Include="../../plugins/Inventar/Inventar.Plugin.csproj" />
-    <ProjectReference Include="../../plugins/ServiceBook/ServiceBook.Plugin.csproj" />
-    <ProjectReference Include="../../plugins/Finance/Finance.Plugin.csproj" />
   </ItemGroup>
 
 </Project>

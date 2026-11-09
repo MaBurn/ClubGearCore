@@ -1,3 +1,4 @@
+using ClubGear.ArchitectureTests.Fixtures;
 using ClubGear.Data;
 using ClubGear.Plugin.Contracts;
 using ClubGear.Services.Abstractions;
@@ -28,6 +29,11 @@ public sealed class ServiceBookDependencyActivationSmokeTests
     [Fact]
     public async Task InstallPackagedZip_ThenActivateWithoutCarInfo_ReturnsDependencyNotMet()
     {
+        if (OpenCoreSnapshot.IsCurrent(GetProjectFilePath()))
+        {
+            return; // Public open-core snapshot: no plugins/ to inspect.
+        }
+
         var (zipBytes, sha256Hex, signatureBase64, publicKeyPem) = ReadPackagedArtifacts();
 
         await using var fixture = await CreateFixtureAsync();
@@ -93,6 +99,11 @@ public sealed class ServiceBookDependencyActivationSmokeTests
     [Fact]
     public async Task RealServiceBookPackage_IsRefused_ForMissingCanonicalConstructor()
     {
+        if (OpenCoreSnapshot.IsCurrent(GetProjectFilePath()))
+        {
+            return; // Public open-core snapshot: no plugins/ to inspect.
+        }
+
         var (zipBytes, sha256Hex, signatureBase64, publicKeyPem) = ReadPackagedArtifacts();
 
         await using var fixture = await CreateFixtureAsync();

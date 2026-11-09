@@ -42,7 +42,7 @@ additive rather than a contract break.
 | CORE-24 | Manifest consistency: one version, checked | `open` | P1 | `core` | CAR-02, 2026-09-09 | R6: only the host reads both declarations, so only the host can compare them. | `Services/Plugins/Manifest/PluginManifestParser.cs`, `Services/Plugins/Runtime/PluginLoader.cs`, `plugins/CarInfo/plugin.json`, `plugins/CarInfo/CarInfoPluginModule.cgcs` |
 | CORE-25 | Secure first-run installation assistant | `open` | P1 | `core` | July 2026 install plan | R8: bootstrap identity, system configuration and global pre-install routing are host responsibilities. | [`inbox/install/2026-07-install-assistant.md`](inbox/install/2026-07-install-assistant.md), `Models/SystemConfigEntry.cs`, `Program.cs` |
 | CORE-27 | Plugin authoring guide and project template | `open` | P2 | `core` | CG-BL-050, CG-BL-051 | R7: the host repository owns the contract, packaging script and compliant repository scaffold. | `docs/plugin-contract.md`, `scripts/package-plugin.sh`, [`README.md`](README.md) crosswalk |
-| CORE-28 | Architecture tests fail to compile against a plugin's checked-out working tree, not its declared contract floor | `open` | P1 | `core` | found 2026-10-03 while verifying the PageKey routing fix (contract 1.14.0) | R6: only the host can decide what a plugin build is allowed to assume about core test compilation; today it assumes the exact source on disk. | `tests/ClubGear.ArchitectureTests/ClubGear.ArchitectureTests.csproj` (`ProjectReference` to `plugins/CarInfo`, `plugins/Finance`, `plugins/Inventar`, `plugins/ServiceBook`), `CarInfoSlice1-5Tests.cs`, `FinanceSlice6-8*Tests.cs`, `PluginSlice3GroupKeyTests.cs`, `PluginNavEntryServiceTests.cs` |
+| CORE-28 | Architecture tests fail to compile against a plugin's checked-out working tree, not its declared contract floor | `delivered` | P1 | `core` | found 2026-10-03 while verifying the PageKey routing fix (contract 1.14.0) | R6: only the host can decide what a plugin build is allowed to assume about core test compilation; today it assumes the exact source on disk. | `tests/ClubGear.ArchitectureTests/ClubGear.ArchitectureTests.csproj` (`ProjectReference` to `plugins/CarInfo`, `plugins/Finance`, `plugins/Inventar`, `plugins/ServiceBook`), `CarInfoSlice1-5Tests.cs`, `FinanceSlice6-8*Tests.cs`, `PluginSlice3GroupKeyTests.cs`, `PluginNavEntryServiceTests.cs` |
 
 Fourteen items. No ID on this page appears in `core-capabilities.md` or `plugins.md`.
 
@@ -70,18 +70,18 @@ view, including the one behavioural break, is `docs/plugin-contract.md` under 1.
 
 Deliberately left out, each with the reason:
 
-1. **A provider cannot consume another provider.** `IPluginHostContext` has no `Providers` member,
-   because `CreateMemberProvider` instantiates through a parameterless
-   `Activator.CreateInstance` and cannot hand the context in. Needs **CORE-18** first. This is the
-   part that makes service plugins consumable *by other plugins* (R5), so the seam is not finished
-   without it.
+1. **A provider cannot consume another provider.** `IPluginHostContext` has no `Providers` member
+   yet. The blocker is gone: **CORE-18** (delivered, contract 1.13.0) constructs every contribution
+   through `IPluginContributionActivator` with an `IPluginHostContext`, so the context can now be
+   handed in — what remains is adding the member itself. This is the part that makes service
+   plugins consumable *by other plugins* (R5), so the seam is not finished without it.
 2. **No administrator selection.** `Resolve` picks the first provider by module id. **CORE-14.**
 3. **`NotificationService` still uses `ToDictionary`.** Untouched on purpose: no plugin can
    contribute an `INotificationChannel` today, so the collision is unreachable there. Swap it in
    the increment that routes channels through this seam, not before.
-4. **No drain on unload** (**CORE-17**) and **no widened boundary check** (**CORE-16**). Both
-   remain open, and both are why this increment is `partial` rather than `shipped`: the seam is
-   usable and tested, but widening the provider surface without them widens the hole.
+4. ~~**No drain on unload** (**CORE-17**) and **no widened boundary check** (**CORE-16**).~~ Both
+   are delivered since (see the status table above). The increment stays `partial` because of
+   items 1–3, not because of these.
 
 The boring, obvious solution: extend the existing audit-sink / identity-provider contribution
 pattern and finally give `PluginServiceContribution` a consumer. Do not invent a framework.
@@ -445,7 +445,18 @@ append-only convention (`Readme.md:73-80`, `30a2b90`).
 
 ## CORE-28 — Architecture tests coupled to a plugin's current checkout, not its contract floor
 
-**Status `open` · Priority P1 · Owner `core`.**
+**Status `delivered` (2026-11-09) · Priority P1 · Owner `core`.**
+
+**Resolution.** Question 2 below is decided in favour of the plugin repositories: the test project
+no longer references any plugin project. The 17 plugin-specific test files (`CarInfo*`, `Finance*`,
+`InventarPluginSliceTests`, `ServiceBookPluginTests`, `PluginSlice3GroupKeyTests`) were removed
+from core; porting them is CAR-03, FIN-03, INV-03 and SB-03 in [`plugins.md`](plugins.md), and the
+originals remain readable at core commit `ef9ead1`. `PluginNavEntryServiceTests` uses a sample
+permission key instead of a Finance one, and `PluginLoadTimeIsolationTests` scans only in-repo
+fixtures — real plugins stay covered by the loader's load-time scan and by the source scan in
+`PluginBoundaryTests`. Question 1 is fixed too: the verify command in `CLAUDE.md` and the `Stop`
+hook no longer pass `--no-build`, so a test compile error fails the gate. The historical analysis
+follows unchanged.
 
 `tests/ClubGear.ArchitectureTests/ClubGear.ArchitectureTests.csproj` carries a `ProjectReference`
 straight to `plugins/CarInfo`, `plugins/Finance`, `plugins/Inventar` and `plugins/ServiceBook`.

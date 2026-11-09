@@ -1,3 +1,4 @@
+using ClubGear.ArchitectureTests.Fixtures;
 using System.Reflection;
 using System.Text;
 using ClubGear.Data;
@@ -95,6 +96,11 @@ public sealed class PluginBoundaryTests
     [Fact]
     public void PluginSubmodules_ShouldBe_CheckedOut()
     {
+        if (OpenCoreSnapshot.IsCurrent(ResolveRepositoryRoot()))
+        {
+            return; // Public open-core snapshot: no plugins/ to inspect.
+        }
+
         var missingModules = FindMissingPluginModules(ResolveRepositoryRoot());
 
         Assert.True(missingModules.Count == 0, DescribeMissingModules(missingModules));
@@ -132,6 +138,11 @@ public sealed class PluginBoundaryTests
     [Fact]
     public void PluginSources_ShouldNotReference_ForbiddenCoreNamespaces()
     {
+        if (OpenCoreSnapshot.IsCurrent(ResolveRepositoryRoot()))
+        {
+            return; // Public open-core snapshot: no plugins/ to inspect.
+        }
+
         var repositoryRoot = ResolveRepositoryRoot();
         var missingModules = FindMissingPluginModules(repositoryRoot);
         Assert.True(missingModules.Count == 0, DescribeMissingModules(missingModules));
@@ -192,6 +203,11 @@ public sealed class PluginBoundaryTests
     [Fact]
     public void PluginSubmodules_ShouldNotBe_EmbeddedRepositories()
     {
+        if (OpenCoreSnapshot.IsCurrent(ResolveRepositoryRoot()))
+        {
+            return; // Public open-core snapshot: no plugins/ to inspect.
+        }
+
         var repositoryRoot = ResolveRepositoryRoot();
 
         var violations = FindSubmoduleHygieneViolations(repositoryRoot)
@@ -221,6 +237,11 @@ public sealed class PluginBoundaryTests
     [Fact]
     public void PluginSubmoduleUrls_ShouldMatch_GitmodulesDeclaration()
     {
+        if (OpenCoreSnapshot.IsCurrent(ResolveRepositoryRoot()))
+        {
+            return; // Public open-core snapshot: no plugins/ to inspect.
+        }
+
         var repositoryRoot = ResolveRepositoryRoot();
 
         var declaredUrls = ReadDeclaredSubmoduleUrls(repositoryRoot);

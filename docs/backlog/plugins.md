@@ -170,6 +170,24 @@ path, and one plugin checked out as a standalone clone instead of a submodule �
 here. They are core repository work under R7 and are defined in
 [`core-platform.md`](core-platform.md). `plugins/ServiceBook` was checked and is correctly wired.
 
+## Plugin tests moved out of core — one item per plugin
+
+Decided 2026-11-09 under CORE-28 in [`core-platform.md`](core-platform.md): core's architecture
+tests no longer reference plugin projects, and plugin behaviour is tested in each plugin's own
+repository. The files below were removed from `tests/ClubGear.ArchitectureTests/`; each is still
+readable with `git show ef9ead1:tests/ClubGear.ArchitectureTests/<file>` in the core repository.
+They predate contract 1.13.0 and construct providers without `IPluginHostContext`, so a port is a
+rewrite against the plugin's own test project and the public contracts, not a copy. A plugin test
+project must not reference `ClubGear.csproj`. Port what still describes current behaviour, and
+drop what doesn't.
+
+| ID | Summary | Status | Priority | Owner repository | Pointer |
+|---|---|---|---|---|---|
+| CAR-03 | Port CarInfo's behaviour tests into its own test project. | `open` | P2 | `plugin-carinfo` | `CarInfoSlice1Tests.cs`–`CarInfoSlice5Tests.cs`, `CarInfoPluginSlice3Tests.cs`, and the CarInfo half of `PluginSlice3GroupKeyTests.cs` (edit tab in group `fahrzeuge`). |
+| FIN-03 | Port Finance's slice tests into `Finance.Tests`. | `open` | P2 | `plugin-finance` | `FinanceSlice1ValidatorTests.cs` through `FinanceSlice8ManualVerifyActionSlotTests.cs` (8 files). |
+| INV-03 | Port Inventar's plugin tests into its own test project. | `open` | P2 | `plugin-inventar` | `InventarPluginSliceTests.cs`. |
+| SB-03 | Port ServiceBook's plugin tests into its own test project. | `open` | P2 | `plugin-servicebook` | `ServiceBookPluginTests.cs`, and the ServiceBook half of `PluginSlice3GroupKeyTests.cs` (edit tab in group `fahrzeuge`). |
+
 ## FIN-01 — Finance 2.0, with its staleness recorded
 
 **Status `delivered` · Priority P1 · Owner `plugin-finance`.**

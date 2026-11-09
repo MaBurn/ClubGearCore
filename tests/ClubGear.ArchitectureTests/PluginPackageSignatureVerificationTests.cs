@@ -1,3 +1,4 @@
+using ClubGear.ArchitectureTests.Fixtures;
 using ClubGear.Services.Plugins.Security;
 using System.Text.Json;
 using Xunit;
@@ -21,6 +22,11 @@ public sealed class PluginPackageSignatureVerificationTests
     [InlineData("ServiceBook")]
     public void Verify_AcceptsFreshlyPackagedPlugin_WithoutSignatureValidationErrors(string pluginDir)
     {
+        if (OpenCoreSnapshot.IsCurrent(GetProjectFilePath()))
+        {
+            return; // Public open-core snapshot: no plugins/ to inspect.
+        }
+
         var distDir = GetProjectFilePath("plugins", pluginDir, "dist");
         using var manifest = JsonDocument.Parse(File.ReadAllText(GetProjectFilePath("plugins", pluginDir, "plugin.json")));
         var version = manifest.RootElement.GetProperty("version").GetString();

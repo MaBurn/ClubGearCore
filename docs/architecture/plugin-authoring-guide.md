@@ -2,7 +2,7 @@
 
 Audience: Plugin-Autoren, Integrationsentwickler, Reviewer
 Scope: Wie Plugins fuer ClubGear erstellt, paketiert, signiert, installiert und aufgerufen werden
-Last-Validated: 2026-10-04
+Last-Validated: 2026-11-09
 
 ## Purpose
 
@@ -56,7 +56,7 @@ public sealed class SampleMemberPluginModule : IPluginModule
         Author: "Sample Team",
         License: "Proprietary",
         EntryPoint: typeof(SampleMemberPluginModule).FullName!,
-        RequiredCoreVersion: ">=1.10.0",
+        RequiredCoreVersion: ">=1.13.0",
         Permissions: new[] { "members.read" },
         ExtensionPoints: new[] { "member.detail", "runtime.route" });
 
@@ -70,6 +70,33 @@ public sealed class SampleMemberPluginModule : IPluginModule
     }
 }
 ```
+
+### Konstruktor-Regel (seit Contract 1.13.0)
+
+Nur die Modulklasse (`entryPoint`, implementiert `IPluginModule`) behaelt ihren parameterlosen
+Konstruktor. **Jede** Contribution-Klasse, die das Modul in `RegisterContributions` registriert —
+Member-Provider, Seiten-Provider, Admin-Panels, Audit-Sinks, Background-Jobs, Identity-Provider,
+Self-Service-Provider —, hat genau **einen** oeffentlichen Konstruktor mit genau einem Parameter
+`IPluginHostContext`:
+
+```csharp
+public sealed class SampleDetailCardProvider : IMemberDetailCardProvider
+{
+    public SampleDetailCardProvider(IPluginHostContext hostContext)
+    {
+        HostContext = hostContext;
+    }
+
+    public IPluginHostContext HostContext { get; }
+
+    // ... Interface-Member
+}
+```
+
+Der Host erzeugt Contributions selbst und reicht dabei den Host-Kontext herein. Hat eine
+registrierte Klasse eine andere Konstruktor-Form, lehnt der Host das **ganze** Plugin schon beim
+Laden ab. `requiredCoreVersion` muss deshalb mindestens `>=1.13.0` sein. Details:
+[Plugin-Contract, Abschnitt 1.13.0](../plugin-contract.md).
 
 Optional kann das Plugin Migrationen bereitstellen:
 
@@ -106,7 +133,7 @@ Beispiel:
   "key": "sample.member.plugin",
   "name": "Sample Member Plugin",
   "version": "1.0.0",
-  "requiredCoreVersion": ">=1.10.0",
+  "requiredCoreVersion": ">=1.13.0",
   "entryPoint": "Sample.MemberPlugin.SampleMemberPluginModule",
   "author": "Sample Team",
   "license": "Proprietary",
@@ -176,6 +203,13 @@ Ein Audit-Sink empfaengt jeden Audit-Log-Eintrag, den der Core schreibt, und kan
 ```csharp
 public sealed class MySinkProvider : IAuditSinkProvider
 {
+    public MySinkProvider(IPluginHostContext hostContext)
+    {
+        HostContext = hostContext;
+    }
+
+    public IPluginHostContext HostContext { get; }
+
     public Task OnAuditEventAsync(PluginAuditEvent evt, CancellationToken ct = default)
     {
         // evt.Action, evt.Actor, evt.Before, evt.After, evt.OccurredAtUtc
@@ -203,6 +237,14 @@ Background-Jobs werden vom Host beim Plugin-Aktivieren gestartet und beim Deakti
 ```csharp
 public sealed class MyJob : IPluginBackgroundJob
 {
+    // Pflicht seit 1.13.0, auch wenn ExecuteAsync den Kontext zusaetzlich als Parameter bekommt.
+    public MyJob(IPluginHostContext hostContext)
+    {
+        HostContext = hostContext;
+    }
+
+    public IPluginHostContext HostContext { get; }
+
     public async Task ExecuteAsync(IPluginHostContext ctx, CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
@@ -231,7 +273,7 @@ Paket sonst ablehnen. Die Runtime-Contribution wird ausschliesslich ueber
 
 ---
 
-### Identity Provider (`identity.provider`, aktueller Contract `1.10.0`)
+### Identity Provider (`identity.provider`, `ContractVersion` >= 1.10.0)
 
 Ein Identity-Provider-Plugin beschreibt einen externen OpenID-Connect-Provider, prueft dessen
 Konfiguration und mappt Claims. Der Core besitzt den OIDC-Handler und erzeugt nach erfolgreicher
@@ -242,6 +284,13 @@ diesem Extension Point nicht unterstuetzt.
 public sealed class MyIdpPlugin : IIdentityProviderPlugin
 {
     public const string Key = "my-oidc";
+
+    public MyIdpPlugin(IPluginHostContext hostContext)
+    {
+        HostContext = hostContext;
+    }
+
+    public IPluginHostContext HostContext { get; }
 
     public string ProviderKey => Key;
     public string DisplayName => "My OIDC Provider";
@@ -300,8 +349,9 @@ sink.AddIdentityProvider(new PluginIdentityProviderContribution(
     ProviderType: typeof(MyIdpPlugin).FullName!));
 ```
 
-Provider- und Modulklasse muessen public, konkret, parameterlos konstruierbar und in derselben
-Plugin-Assembly enthalten sein. Der Provider-Key traegt kein `oidc.`-Praefix. Contribution-Key und
+Provider- und Modulklasse muessen public, konkret und in derselben Plugin-Assembly enthalten
+sein. Die Modulklasse ist parameterlos konstruierbar, der Provider folgt der
+[Konstruktor-Regel](#konstruktor-regel-seit-contract-1130). Der Provider-Key traegt kein `oidc.`-Praefix. Contribution-Key und
 `IIdentityProviderPlugin.ProviderKey` muessen identisch und ueber alle installierten Plugins
 eindeutig sein.
 
@@ -443,6 +493,18 @@ Jede Provider-Klasse implementiert `IPluginPageProvider` eigenstaendig und liefe
 
 **Beispiel:** Finance teilt eine fruehere Einzelseite mit internem Query-Parameter (`?section=...`) in vier eigenstaendige Seiten (`finance.treasurer.fibu`, `.budget`, `.fees`, `.reports`) auf und gruppiert deren Nav-Eintraege unter `GroupKey = "finance"` zu einem "Finanzen"-Dropdown.
 
+### Icon-Spalten auf generischen Seiten (`IsIconColumn`, Contract 1.15.0)
+
+Eine `PluginPageColumn` kann als Icon-Spalte markiert werden. Der Host rendert den Zellwert dann
+in Liste und Detailansicht als Bootstrap-Icon (`<i class="bi {wert}"></i>`) statt als Text:
+
+```csharp
+new PluginPageColumn("icon", "Typ") { IsIconColumn = true }
+```
+
+`GetRowsAsync` liefert fuer diesen Key einen Bootstrap-Icons-Klassennamen wie `bi-box-seam`. Die
+Property ist `init`-only und standardmaessig `false`; bestehende Plugins bleiben binaer kompatibel.
+
 ## 7. Runtime-Route aufrufen
 
 Der Host stellt einen Dispatcher fuer Plugin-GET-Routen bereit:
@@ -534,6 +596,9 @@ Statusabfrage:
 
 - Manifestfelder fehlen oder haben falschen Namen.
 - `entryPoint` zeigt auf einen Typ, der `IPluginModule` nicht implementiert.
+- Eine Contribution-Klasse hat keinen Konstruktor `(IPluginHostContext)` oder mehrere oeffentliche
+  Konstruktoren; der Host lehnt dann das ganze Plugin ab (siehe Konstruktor-Regel in Abschnitt 3).
+- `requiredCoreVersion` liegt unter `>=1.13.0`; das Plugin gilt dann als inkompatibel.
 - ZIP ohne `plugin.json`.
 - Hash oder Signatur passt nicht zur ZIP-Datei.
 - Plugin referenziert verbotene Core-Namespaces.

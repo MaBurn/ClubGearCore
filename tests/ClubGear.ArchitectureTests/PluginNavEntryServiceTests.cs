@@ -4,13 +4,14 @@ using ClubGear.Plugin.Contracts;
 using ClubGear.Services.Abstractions;
 using ClubGear.Services.Core;
 using ClubGear.Services.Plugins.Runtime;
-using ClubGear.Plugin.Finance;
 using Xunit;
 
 namespace ClubGear.ArchitectureTests;
 
 public sealed class PluginNavEntryServiceTests
 {
+    private const string SamplePermissionKey = "sample.plugin.page.read";
+
     // ----------------------------------------------------------------
     // helpers
     // ----------------------------------------------------------------
@@ -121,27 +122,27 @@ public sealed class PluginNavEntryServiceTests
     }
 
     [Fact]
-    public async Task GetVisibleNavEntries_IncludesFinanceNavEntry_WhenPermissionServiceGrantsKassenwartAccess()
+    public async Task GetVisibleNavEntries_IncludesEntry_WhenPermissionServiceGrantsItsPermission()
     {
         var entry = new PluginNavEntry(
-            "Kassenwart", "bi-cash-coin", "/finance", FinancePermissions.KassenwartAccess, 10);
-        var registry = BuildRegistry(MakeRuntime("clubgear.plugin.finance", new[] { entry }));
+            "Sample", "bi-box", "/sample", SamplePermissionKey, 10);
+        var registry = BuildRegistry(MakeRuntime("sample.plugin", new[] { entry }));
         var service = new PluginNavEntryService(
             registry,
-            new StubPermissionService(key => key == FinancePermissions.KassenwartAccess));
+            new StubPermissionService(key => key == SamplePermissionKey));
 
         var result = await service.GetVisibleNavEntriesAsync(AnonymousUser(), CancellationToken.None);
 
         Assert.Single(result);
-        Assert.Equal("Kassenwart", result[0].Label);
+        Assert.Equal("Sample", result[0].Label);
     }
 
     [Fact]
-    public async Task GetVisibleNavEntries_ExcludesFinanceNavEntry_WhenPermissionServiceDeniesKassenwartAccess()
+    public async Task GetVisibleNavEntries_ExcludesEntry_WhenPermissionServiceDeniesItsPermission()
     {
         var entry = new PluginNavEntry(
-            "Kassenwart", "bi-cash-coin", "/finance", FinancePermissions.KassenwartAccess, 10);
-        var registry = BuildRegistry(MakeRuntime("clubgear.plugin.finance", new[] { entry }));
+            "Sample", "bi-box", "/sample", SamplePermissionKey, 10);
+        var registry = BuildRegistry(MakeRuntime("sample.plugin", new[] { entry }));
         var service = new PluginNavEntryService(registry, new StubPermissionService(_ => false));
 
         var result = await service.GetVisibleNavEntriesAsync(AnonymousUser(), CancellationToken.None);

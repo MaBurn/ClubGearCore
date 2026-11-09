@@ -2,7 +2,7 @@
 
 Audience: Plugin-Autoren, IAM-Integratoren, Reviewer, Betreiber
 Scope: Funktionsfaehige Integration externer OpenID-Connect-Provider ueber ClubGear-Plugins
-Last-Validated: 2026-08-05
+Last-Validated: 2026-11-09
 
 ## Unterstuetzter Standard und Verantwortungsgrenze
 
@@ -32,12 +32,14 @@ Massgebliche Typen:
 - `PluginIdentityProviderContribution`
 - `PluginExtensionPoints.IdentityProvider`
 
-Der aktuelle Host verwendet `ContractVersion.Current = 1.10.0` und akzeptiert Anforderungen im
-Fenster von `1.8.0` bis einschliesslich `1.10.0`. Ein Plugin, das eine neuere Contract-Version
-fordert, wird bis zu einem passenden Core-Upgrade abgewiesen. Ein neu gegen den aktuellen
-Contract gebautes Plugin deklariert deshalb
-`requiredCoreVersion: ">=1.10.0"`. Trotz des historischen Namens bezeichnet dieses Manifestfeld
-die benoetigte **Plugin-Contract-Version**, nicht die CalVer aus `ClubGear.csproj`.
+Der Host akzeptiert Anforderungen im Fenster von `ContractVersion.MinimumSupported` bis
+einschliesslich `ContractVersion.Current` (beide in `Contracts/Plugin/ContractVersion.cs`). Ein
+Plugin, das eine neuere Contract-Version fordert, wird bis zu einem passenden Core-Upgrade
+abgewiesen. Seit 1.13.0 (vom Host erzeugte Contributions, siehe
+[Plugin-Contract](../plugin-contract.md)) ist `MinimumSupported` mindestens `1.13.0`; ein neu
+gebautes Plugin deklariert deshalb mindestens `requiredCoreVersion: ">=1.13.0"`. Trotz des
+historischen Namens bezeichnet dieses Manifestfeld die benoetigte **Plugin-Contract-Version**,
+nicht die CalVer aus `ClubGear.csproj`.
 
 ## Funktionsfaehiges Referenzplugin
 
@@ -85,7 +87,7 @@ Minimale `plugin.json`:
   "key": "clubgear.plugin.iam.oidc",
   "name": "ClubGear IAM OIDC",
   "version": "0.1.0",
-  "requiredCoreVersion": ">=1.10.0",
+  "requiredCoreVersion": ">=1.13.0",
   "entryPoint": "ClubGear.Plugin.IamOidc.IamOidcPluginModule",
   "author": "ClubGear",
   "license": "Proprietary",
@@ -100,9 +102,11 @@ Contract-Anforderung denselben Stand beschreiben.
 
 ## Vereinfachtes, kompilierbares Contract-Beispiel
 
-Provider- und Modulklasse muessen `public`, konkret, parameterlos konstruierbar und in derselben
-Plugin-Assembly enthalten sein. Der Core erzeugt Provider-Instanzen mit
-`Activator.CreateInstance`; Constructor Injection steht hier nicht zur Verfuegung.
+Provider- und Modulklasse muessen `public`, konkret und in derselben Plugin-Assembly enthalten
+sein. Die Modulklasse ist parameterlos konstruierbar. Die Providerklasse hat seit Contract 1.13.0
+genau **einen** oeffentlichen Konstruktor mit genau einem Parameter `IPluginHostContext`; der Core
+erzeugt sie selbst und reicht den Host-Kontext herein. Jede andere Konstruktor-Form fuehrt dazu,
+dass der Host das ganze Plugin beim Laden ablehnt.
 
 Das Beispiel ist bewusst auf eine generische Contribution gekuerzt. Fuer produktiven Einsatz
 sind insbesondere Redirect-Abweisung, Antwortgroessen-/Zeitlimits, `code`-Pruefung,
@@ -126,7 +130,7 @@ public sealed class IamOidcPluginModule : IPluginModule
         Author: "ClubGear",
         License: "Proprietary",
         EntryPoint: typeof(IamOidcPluginModule).FullName!,
-        RequiredCoreVersion: ">=1.10.0",
+        RequiredCoreVersion: ">=1.13.0",
         Permissions: Array.Empty<string>(),
         ExtensionPoints: [PluginExtensionPoints.IdentityProvider])
     {
@@ -148,6 +152,13 @@ public sealed class GenericOidcIdentityProvider : IIdentityProviderPlugin
     {
         Timeout = TimeSpan.FromSeconds(10)
     };
+
+    public GenericOidcIdentityProvider(IPluginHostContext hostContext)
+    {
+        HostContext = hostContext;
+    }
+
+    public IPluginHostContext HostContext { get; }
 
     public string ProviderKey => Key;
     public string DisplayName => "OpenID Connect";
@@ -459,7 +470,8 @@ Login-Seite
 
 1. Projekt baut ausschliesslich gegen `ClubGear.Plugin.Contracts`.
 2. `plugin.json` wird vom `PluginManifestParser` akzeptiert.
-3. Modul- und Providerklasse sind public und parameterlos konstruierbar.
+3. Modul- und Providerklasse sind public; die Modulklasse ist parameterlos konstruierbar, die
+   Providerklasse hat genau einen oeffentlichen Konstruktor `(IPluginHostContext)`.
 4. Contribution-Key und Interface-Key sind gleich und repositoryweit eindeutig.
 5. `authority`, `clientid` und `clientsecret` werden im Schema angeboten.
 6. Discovery-Test und Fehlertexte funktionieren fuer falsche Authority sowie fehlende
