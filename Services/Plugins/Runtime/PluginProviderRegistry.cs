@@ -8,15 +8,18 @@ public sealed class PluginProviderRegistry : IPluginProviderRegistry
 {
     private readonly IPluginRegistryReader _registryReader;
     private readonly IPluginContributionActivator _contributionActivator;
+    private readonly IPluginProviderSelectionService _selection;
     private readonly ILogger<PluginProviderRegistry> _logger;
 
     public PluginProviderRegistry(
         IPluginRegistryReader registryReader,
         IPluginContributionActivator contributionActivator,
+        IPluginProviderSelectionService selection,
         ILogger<PluginProviderRegistry> logger)
     {
         _registryReader = registryReader;
         _contributionActivator = contributionActivator;
+        _selection = selection;
         _logger = logger;
     }
 
@@ -24,37 +27,46 @@ public sealed class PluginProviderRegistry : IPluginProviderRegistry
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(capabilityKey);
 
-        var candidates = ResolveAll<TProvider>(capabilityKey);
-
-        if (candidates.Count == 0)
+        // CORE-14: only the administrator's choice is resolved. Without one the core default
+        // serves the capability, however many plugins claim it, so installing a plugin never
+        // silently changes where data goes. A collision is therefore a resolvable state.
+        var selected = _selection.GetSelectedModuleId(capabilityKey);
+        if (selected is null)
         {
             return PluginContributionLease<TProvider>.Empty(
                 string.Empty,
                 capabilityKey,
-                $"Kein Plugin stellt die Capability '{capabilityKey}' bereit.");
+                $"Fuer '{capabilityKey}' ist kein Plugin-Provider ausgewaehlt; der Core-Standard gilt.");
         }
 
-        // Tolerating the collision is the whole point. Two plugins claiming one capability is a
-        // configuration problem the administrator has to settle (CORE-14), not a reason to fail
-        // the request — and certainly not a reason to fail scope construction the way
-        // NotificationService's ToDictionary does today.
-        if (candidates.Count > 1)
+        var registration = GetRegistrations(capabilityKey)
+            .FirstOrDefault(r => string.Equals(r.ModuleId, selected, StringComparison.OrdinalIgnoreCase));
+        if (registration is null)
         {
             _logger.LogWarning(
-                "Mehrere Plugins beanspruchen die Capability '{CapabilityKey}': {Modules}. "
-                + "Bis zur Auswahl durch einen Administrator (CORE-14) wird '{Selected}' verwendet.",
+                "Der fuer '{CapabilityKey}' ausgewaehlte Provider '{ModuleId}' ist nicht aktiv; der Core-Standard gilt.",
                 capabilityKey,
-                string.Join(", ", candidates.Select(c => c.ModuleId)),
-                candidates[0].ModuleId);
+                selected);
+            return PluginContributionLease<TProvider>.Empty(
+                selected,
+                capabilityKey,
+                $"Das ausgewaehlte Plugin '{selected}' ist nicht aktiv; der Core-Standard gilt.");
         }
 
-        // The losers are disposed here: only the selected lease travels on to the caller.
-        for (var index = 1; index < candidates.Count; index++)
+        var lease = _contributionActivator.Rent<TProvider>(registration.ModuleId, registration.ProviderType);
+        if (lease.Instance is null)
         {
-            candidates[index].Dispose();
+            _logger.LogWarning(
+                "Provider '{ProviderType}' aus Plugin '{ModuleId}' fuer Capability '{CapabilityKey}' "
+                + "konnte nicht als {Contract} erzeugt werden: {Reason}",
+                registration.ProviderType,
+                registration.ModuleId,
+                capabilityKey,
+                typeof(TProvider).Name,
+                lease.Error);
         }
 
-        return candidates[0].Lease;
+        return lease;
     }
 
     public IReadOnlyList<PluginProvider<TProvider>> ResolveAll<TProvider>(string capabilityKey)

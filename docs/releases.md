@@ -15,6 +15,7 @@ For what changed in each release, see [`CHANGELOG.md`](../CHANGELOG.md).
 
 | Version | Date | Git ref | Artifact | Summary |
 |---|---|---|---|---|
+| `2026.11.3` | 2026-11-10 | `main` | `clubgear-2026.11.3.tar.gz` | Plugin administration: administrator selects the provider of a single-active capability; the core default applies until then (CORE-14). The public mirror no longer carries personal identifiers. |
 | `2026.11.2` | 2026-11-10 | `main` | `clubgear-2026.11.2.tar.gz` | Security: plugin navigation routes with whitespace or control characters are dropped (off-site link via `/<tab>/host`), and plugin HTML keeps `name` only on form controls (no `document` property clobbering). |
 | `2026.11.1` | 2026-11-09 | `main` | `clubgear-2026.11.1.tar.gz` | Security: plugin HTML is sanitised before rendering (CORE-31), with host-handled self-service forms and host-owned action routing; plugin contract 1.16.0 adds the acting member (CORE-29). Plugins with inline scripts in their HTML need an update (ServiceBook: SB-04). |
 | `2026.11.0` | 2026-11-09 | `main` | `clubgear-2026.11.0.tar.gz` | Architecture tests decoupled from plugin source and compiling again (plugin tests move to the plugin repositories), verification gate builds the test project, plugin author guides updated to the contract 1.13.0 constructor rule and 1.15.0 icon columns. |

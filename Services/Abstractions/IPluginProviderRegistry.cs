@@ -20,15 +20,14 @@ namespace ClubGear.Services.Abstractions;
 public interface IPluginProviderRegistry
 {
     /// <summary>
-    /// The provider serving a <see cref="PluginCapabilityArity.SingleActive"/> capability, or
-    /// <c>null</c> when no plugin provides it and the caller should fall back to the core default.
+    /// The administrator-selected provider for a <see cref="PluginCapabilityArity.SingleActive"/>
+    /// capability, or an empty lease when the caller should fall back to the core default.
     /// </summary>
     /// <remarks>
-    /// When several plugins claim the same single-active capability, this returns a deterministic
-    /// choice and logs the competing claims. It never throws on a collision — that is the point of
-    /// CORE-13, and it is what today's <c>NotificationService</c> constructor does not do. Which
-    /// provider *should* win is an administrator's decision and is CORE-14; until that lands the
-    /// choice here is stable but arbitrary.
+    /// CORE-14: without a selection the core default serves the capability, however many plugins
+    /// claim it, so this never throws on a collision and never picks arbitrarily. A selected plugin
+    /// that is not active also yields an empty lease. Selection lives in
+    /// <see cref="IPluginProviderSelectionService"/>.
     /// </remarks>
     /// <remarks>
     /// CORE-18: the caller owns a lease, not a bare instance. Disposing it releases the host scope
@@ -44,8 +43,7 @@ public interface IPluginProviderRegistry
     IReadOnlyList<PluginProvider<TProvider>> ResolveAll<TProvider>(string capabilityKey) where TProvider : class;
 
     /// <summary>
-    /// What is registered for a capability, without instantiating anything. Intended for the admin
-    /// surface that CORE-14 will use to let an administrator choose between competing providers.
+    /// What is registered for a capability, without instantiating anything.
     /// </summary>
     IReadOnlyList<PluginProviderRegistration> GetRegistrations(string capabilityKey);
 }

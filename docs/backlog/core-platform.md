@@ -29,7 +29,7 @@ additive rather than a contract break.
 |---|---|---|---|---|---|---|---|
 | CORE-03 | Plugin surfaces and host contracts — remaining increments | `partial` | P1 | `core` | TodoFeatures, proposal-2026-08 | R5: one host-side page/surface mechanism, so both plugin kinds render through it. | `Contracts/Plugin/IPluginPageProvider.cs`, `Contracts/Plugin/PluginExtensionPoints.cs:5-15`, `2405439` |
 | CORE-13 | One provider contribution seam | `partial` | **P0** | `core` | June 2026 list, proposal-2026-08 `channel-provider`, user's service plugins | R5: two plugin kinds, **one** mechanism — the provider seam is the mechanism. | `Contracts/Plugin/PluginContributions.cs:7,31`, `Services/Plugins/Runtime/PluginLoader.cs:130,140,160`, `Services/Abstractions/IPluginRegistryReader.cs:23` |
-| CORE-14 | Provider selection and precedence | `open` | **P0** | `core` | R3, R5 | R3: a storage plugin must be able to supersede *and disable* the core default, which needs explicit selection, not DI last-wins. | `Services/Core/NotificationService.cs:23,32` |
+| CORE-14 | Provider selection and precedence | `delivered` | **P0** | `core` | R3, R5 | R3: a storage plugin must be able to supersede *and disable* the core default, which needs explicit selection, not DI last-wins. | `Services/Core/NotificationService.cs:23,32` |
 | CORE-15 | Plugin settings and secret store | `open` | P0 | `core` | June 2026 list, `DECISIONS.md` open item 6 | R8: the host itself needs it and every credentialed connector needs it — two independent consumers. | `docs/architecture/proposal-2026-08/DECISIONS.md:170`, `ADRs/0001-plugin-development-guardrails.md:211,223` |
 | CORE-16 | Make the plugin boundary real | `delivered` | **P0** | `core` | June 2026 list, proposal-2026-08 D5 | R6-adjacent: an isolation boundary that must hold before and while any plugin runs is permanent core. | `Services/Plugins/Runtime/PluginIsolationScanner.cs`, `tests/ClubGear.ArchitectureTests/PluginLoadTimeIsolationTests.cs`, `bba6cf2`, `ffe5622` |
 | CORE-17 | Provider lifecycle: drain in-flight calls before ALC unload | `delivered` | P0 | `core` | June 2026 list residue, proposal-2026-08 Q3 | R6: only the host can sequence unload; a plugin cannot drain itself. | `Services/Plugins/Runtime/PluginActivityTracker.cs`, `tests/ClubGear.ArchitectureTests/PluginDeactivationDrainTests.cs`, `087db19` |
@@ -80,7 +80,7 @@ Deliberately left out, each with the reason:
    through `IPluginContributionActivator` with an `IPluginHostContext`, so the context can now be
    handed in — what remains is adding the member itself. This is the part that makes service
    plugins consumable *by other plugins* (R5), so the seam is not finished without it.
-2. **No administrator selection.** `Resolve` picks the first provider by module id. **CORE-14.**
+2. ~~**No administrator selection.**~~ Delivered with **CORE-14** (2026-11-10).
 3. **`NotificationService` still uses `ToDictionary`.** Untouched on purpose: no plugin can
    contribute an `INotificationChannel` today, so the collision is unreachable there. Swap it in
    the increment that routes channels through this seam, not before.
@@ -153,7 +153,15 @@ This item supersedes the phantom 2026-06-16 notification-channel ADR block; see 
 
 ## CORE-14 — Provider selection and precedence
 
-**Status `open` · Priority P0 · Owner `core`.**
+**Status `delivered` · Priority P0 · Owner `core`.**
+
+**Delivered 2026-11-10** for single-active keys: `Services/Plugins/Runtime/PluginProviderSelectionService.cs`,
+`Resolve` in `PluginProviderRegistry.cs`, the block "Provider-Auswahl" on the plugin administration
+page (`Controllers/PluginAdmin/PluginProviderSelection_Controller.cs`), tests in
+`PluginProviderSelectionTests.cs` and `PluginProviderSeamTests.cs`. Decision record:
+`ADRs/consolidated/plugin-platform.adr.md`, 2026-11-10. Points 1, 2 and 4 below hold. **Not built:**
+per-provider enable/disable for fan-out keys, and the fan-out half of point 3 for
+`NotificationService`. Both wait for the first fan-out consumer (CORE-13 item 3).
 
 R3 says local file storage stays in the core as the **default** but a storage plugin must be able
 to **supersede and disable** it. That is impossible with implicit DI last-wins registration, which
@@ -425,8 +433,8 @@ repair held: every `plugins/<X>/.git` is a gitlink file and every effective URL 
 its `.gitmodules` declaration.
 
 1. **The Finance submodule URL was pinned to a local path.** `.gitmodules:15` declares
-   `git@git.maxbrenne.de:clubgear/plugin-finance.git`; the local `.git/config` had
-   `submodule.plugins/Finance.url` set to `/Users/max/Code/ClubGear/plugins/Finance`. Repaired with
+   `git@git.example.org:clubgear/plugin-finance.git`; the local `.git/config` had
+   `submodule.plugins/Finance.url` set to `/home/dev/Code/ClubGear/plugins/Finance`. Repaired with
    `git submodule sync -- plugins/Finance`; the config now reads the declared URL.
 2. **`plugins/IamOidc` was an old-style embedded `.git` directory.** Converted to the standard
    gitlink form (`git submodule deinit` + removing the embedded `.git` + `git submodule update

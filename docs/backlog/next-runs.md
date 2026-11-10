@@ -35,9 +35,9 @@ these runs, in this order:
 | # | Run | Items | Why this position |
 |---|---|---|---|
 | R1 | Acting member on page commands | CORE-29 | **Done** (contract 1.16.0). |
-| R2 | The provider seam, finished | CORE-13 increment 2, CORE-14 | = run 4 below; prerequisite of CORE-02. |
+| R2 | The provider seam, finished | CORE-13 increment 2, CORE-14 | **CORE-14 done** (2026-11-10). CORE-13 item 1 (`IPluginHostContext.Providers`) moves into R4, because it needs CORE-02's first contract capability interface. |
 | R3 | Plugin settings and secret store | CORE-15 | = run 5; Nextcloud credentials. |
-| R4 | Secure file and media storage | CORE-02 | = run 9; images and Markdown files. Needs R2. **Includes the file field type and storage reference in the contract**, without which no plugin can use it. |
+| R4 | Secure file and media storage | CORE-02 (+ CORE-13 item 1) | = run 9; images and Markdown files. Needs R2. **Includes the file field type and storage reference in the contract**, without which no plugin can use it. |
 | R5 | Notification inbox — remaining part | CORE-04 | Status-change notifications. Re-scope against what is `partial` today. |
 | R6 | Entity-dependent command form | CORE-30 | Not blocking (union-schema workaround); improves Redaktion UX. |
 

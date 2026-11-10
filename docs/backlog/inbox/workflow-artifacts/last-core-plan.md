@@ -27,9 +27,9 @@ dotnet test tests/ClubGear.ArchitectureTests/ClubGear.ArchitectureTests.csproj -
 
 ## Working directory
 
-- Working directory: repository root `/Users/max/Code/ClubGear`
-- File root: `/Users/max/Code/ClubGear`
-- Execute prefix: none (`cd /Users/max/Code/ClubGear &&` where the shell resets cwd)
+- Working directory: repository root `/home/dev/Code/ClubGear`
+- File root: `/home/dev/Code/ClubGear`
+- Execute prefix: none (`cd /home/dev/Code/ClubGear &&` where the shell resets cwd)
 - Branch: `main` (the existing branch — **no worktree, no new branch**)
 
 **Decided: no worktree.** Work happens directly in the current working tree on `main`. There is no
@@ -139,8 +139,8 @@ nothing and halts *only this slice*; slices 2–8 proceed and slice 8 records th
 Nothing in this slice is committed.
 
 - [ ] **1.1 — Run all six gate commands, mutate nothing.** In order, capturing every output:
-  1. `git ls-remote git@git.maxbrenne.de:clubgear/plugin-finance.git`
-  2. `git ls-remote git@git.maxbrenne.de:clubgear/plugin-iamoidc.git`
+  1. `git ls-remote git@git.example.org:clubgear/plugin-finance.git`
+  2. `git ls-remote git@git.example.org:clubgear/plugin-iamoidc.git`
   3. `git -C plugins/Finance fetch origin` then `git -C plugins/Finance log origin/main..HEAD --oneline`
   4. `git -C plugins/IamOidc fetch origin` then `git -C plugins/IamOidc log origin/main..HEAD --oneline`
   5. `git -C plugins/Finance status --porcelain`
@@ -156,7 +156,7 @@ Nothing in this slice is committed.
   - Run `git submodule sync -- plugins/Finance`.
   - Files: `.git/config` only.
   - **DoD:** `git config --get submodule.plugins/Finance.url` prints exactly
-    `git@git.maxbrenne.de:clubgear/plugin-finance.git`; `plugins/Finance/.git` is still a file;
+    `git@git.example.org:clubgear/plugin-finance.git`; `plugins/Finance/.git` is still a file;
     `git -C plugins/Finance status --porcelain` is empty; `git status --porcelain` shows no new
     entry for `plugins/Finance`. If the URL is anything else, restore the previous value with
     `git config submodule.plugins/Finance.url <old>` and halt slice 1 **before** touching IamOidc.
@@ -164,7 +164,7 @@ Nothing in this slice is committed.
 - [ ] **1.3 — Back up `plugins/IamOidc/.git` outside the working tree and verify the ref.**
   - Copy to `/private/tmp/claude-501/-Users-max-Code-ClubGear/97dc48b1-f16f-47c2-b3a1-0c3423754294/scratchpad/iamoidc-git-backup/`
     (e.g. `cp -a plugins/IamOidc/.git <backup>`).
-  - **DoD:** the backup directory exists outside `/Users/max/Code/ClubGear`;
+  - **DoD:** the backup directory exists outside `/home/dev/Code/ClubGear`;
     `git --git-dir=<backup> rev-parse refs/heads/main` prints
     `2835a1fad8cbab14602e334b02d5c11c16f3ab98`; `git --git-dir=<backup> fsck --no-progress` reports
     no missing objects. If the ref does not match `2835a1fa…`, halt slice 1 — the conversion is not
@@ -182,7 +182,7 @@ Nothing in this slice is committed.
     - `test -d .git/modules/plugins/IamOidc` is true
     - `git -C plugins/IamOidc log -1 --format=%H` prints `2835a1fad8cbab14602e334b02d5c11c16f3ab98`
     - `git -C plugins/IamOidc status --porcelain` is empty
-    - `git -C plugins/IamOidc remote -v` shows `git@git.maxbrenne.de:clubgear/plugin-iamoidc.git`
+    - `git -C plugins/IamOidc remote -v` shows `git@git.example.org:clubgear/plugin-iamoidc.git`
 
 - [ ] **1.5 — Confirm the superproject index was not rewritten.**
   - **DoD:** `git status --porcelain` still shows `M plugins/CarInfo` and shows **no** new entry for
@@ -413,7 +413,7 @@ Depends on slice 2 (the fixture and the rule it pins). `.gitlab-ci.yml` `submodu
     `docs/plugin-contract.md:86-94` snippet — `private readonly IPluginHostContext _host;` with the
     expression-bodied constructor — against `ClubGear.Plugin.Contracts` using
     `dotnet build -c Release /warnaserror`. Record the exact diagnostic ID and full message text.
-  - **DoD:** no file inside `/Users/max/Code/ClubGear` was created or modified by this step
+  - **DoD:** no file inside `/home/dev/Code/ClubGear` was created or modified by this step
     (`git status --porcelain` identical before and after); the observed ID and message are written
     down verbatim; **one** of three written branches is selected and recorded:
     (a) `CS0414` observed → the note names `CS0414`;
@@ -551,7 +551,7 @@ the governance rule at `next-runs.md:207-209`, not a preference.** No earlier sl
 
 ## Final Run Gate
 
-- [ ] **G1 — Three-command verification gate, in order, from `/Users/max/Code/ClubGear`.**
+- [ ] **G1 — Three-command verification gate, in order, from `/home/dev/Code/ClubGear`.**
   - `dotnet build -c Release --no-restore /warnaserror`
   - `dotnet build tests/ClubGear.ArchitectureTests/ClubGear.ArchitectureTests.csproj -c Release --no-restore /warnaserror`
   - `dotnet test tests/ClubGear.ArchitectureTests/ClubGear.ArchitectureTests.csproj -c Release --no-build`
@@ -579,7 +579,7 @@ the governance rule at `next-runs.md:207-209`, not a preference.** No earlier sl
     pointer change predates this run and is outside its scope — no slice commits it.
   - **DoD — no worktree artifacts:** `git worktree list` shows no `.crispy-worktree` entry,
     `git branch --list 'crispy/*'` is empty, and `.crispy-worktree/` does not exist. All work is on
-    `main` in `/Users/max/Code/ClubGear`.
+    `main` in `/home/dev/Code/ClubGear`.
 
 - [ ] **G4 — Delete the slice-1 backup, last.**
   - Remove `/private/tmp/claude-501/-Users-max-Code-ClubGear/97dc48b1-f16f-47c2-b3a1-0c3423754294/scratchpad/iamoidc-git-backup/`

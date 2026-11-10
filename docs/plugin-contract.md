@@ -281,10 +281,15 @@ use. (Until 1.12.0 this read "a parameterless constructor"; that shape was remov
 **Not yet available, and why.** A provider still cannot consume *another* provider, because
 `IPluginHostContext` has no `Providers` member — but the blocker is gone: CORE-18 landed in 1.13.0,
 so the host now hands the context to a contribution at construction, and adding `Providers` is a
-pure addition to `IPluginHostContext`. That remaining member is CORE-13's next increment. Which
-provider wins a `SingleActive` capability is likewise not yet an administrator's choice — `Resolve`
-returns the first by module id and logs the competing claims. That is CORE-14. Both are tracked in
-`docs/backlog/core-platform.md`.
+pure addition to `IPluginHostContext`. That remaining member is CORE-13's next increment, tracked
+in `docs/backlog/core-platform.md`; it will arrive together with the first contract capability
+interface (CORE-02).
+
+**Since core 2026.11.x (CORE-14), a `SingleActive` provider runs only when an administrator selects
+it** under Plugins → Provider-Auswahl. Until then the core default serves the capability, even when
+exactly one plugin claims it. A selected plugin that is deactivated falls back to the core default
+and is flagged there. This is host behaviour, not contract shape, so it carries no contract version.
+`FanOut` capabilities are unaffected: `ResolveAll` still returns every claimant.
 
 ### 1.11.0 — sorting and paging for plugin pages (CORE-03, increment 1)
 

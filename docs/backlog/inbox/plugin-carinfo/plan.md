@@ -2,11 +2,11 @@
 
 CAR-02: adopt plugin contract `1.13.0` in CarInfo, release as `1.0.10`.
 
-**Working repository:** `/Users/max/Code/ClubGear/plugins/CarInfo` — a standalone git repository
+**Working repository:** `/home/dev/Code/ClubGear/plugins/CarInfo` — a standalone git repository
 that sits inside the ClubGear core checkout as a submodule. Every path below is absolute or relative
-to this repository. **The core checkout at `/Users/max/Code/ClubGear` is read-only for this run.**
+to this repository. **The core checkout at `/home/dev/Code/ClubGear` is read-only for this run.**
 
-**Working directory:** `/Users/max/Code/ClubGear/plugins/CarInfo` — the repository root itself.
+**Working directory:** `/home/dev/Code/ClubGear/plugins/CarInfo` — the repository root itself.
 **File root:** the same. **No execute prefix.**
 
 **No worktree is used, and this was decided rather than skipped.** `CarInfo.Plugin.csproj:8`
@@ -18,7 +18,7 @@ resolves the contracts project by a path relative to the project file:
 
 From the repository root that resolves into the surrounding core checkout, where
 `ContractVersion.Current == MinimumSupported == 1.13.0`. From a worktree at `.crispy-worktree/` the
-same relative path would resolve to `/Users/max/Code/ClubGear/plugins/Contracts/Plugin/...`, which
+same relative path would resolve to `/home/dev/Code/ClubGear/plugins/Contracts/Plugin/...`, which
 does not exist — restore would fail and the run's **only** automated gate would be unavailable,
 recoverable only via a `-p:ClubGearContractsProject=` override that design §6.1 explicitly says is
 unnecessary and that this plan forbids. A worktree is therefore not merely declined here, it is
@@ -32,9 +32,9 @@ Copied verbatim from `04_design.md` §9. Use these exact strings; do not substit
 `dotnet build`, do not drop `/warnaserror`, do not add `-p:ClubGearContractsProject=`.
 
 - **Setup:** `git status`
-- **Install:** `dotnet restore /Users/max/Code/ClubGear/plugins/CarInfo/CarInfo.Plugin.csproj`
-- **Test:** `dotnet build /Users/max/Code/ClubGear/plugins/CarInfo/CarInfo.Plugin.csproj -c Release /warnaserror`
-- **Run:** `dotnet build /Users/max/Code/ClubGear/plugins/CarInfo/CarInfo.Plugin.csproj -c Release /warnaserror`
+- **Install:** `dotnet restore /home/dev/Code/ClubGear/plugins/CarInfo/CarInfo.Plugin.csproj`
+- **Test:** `dotnet build /home/dev/Code/ClubGear/plugins/CarInfo/CarInfo.Plugin.csproj -c Release /warnaserror`
+- **Run:** `dotnet build /home/dev/Code/ClubGear/plugins/CarInfo/CarInfo.Plugin.csproj -c Release /warnaserror`
 
 There is **no test project in this repository and none is being created** (design §4). The Release
 build under `/warnaserror` is the only automated gate, and it is both the Test and the Run command:
@@ -120,9 +120,9 @@ disposition has changed, which is why this slice is safe to land alone.
   pass, so no intermediate state with only three converted types is ever committed.
 
 - [ ] **1.3 — Build under the mandatory escalation.**
-  Run **Install:** `dotnet restore /Users/max/Code/ClubGear/plugins/CarInfo/CarInfo.Plugin.csproj`
+  Run **Install:** `dotnet restore /home/dev/Code/ClubGear/plugins/CarInfo/CarInfo.Plugin.csproj`
   then **Test/Run:**
-  `dotnet build /Users/max/Code/ClubGear/plugins/CarInfo/CarInfo.Plugin.csproj -c Release /warnaserror`
+  `dotnet build /home/dev/Code/ClubGear/plugins/CarInfo/CarInfo.Plugin.csproj -c Release /warnaserror`
   This slice is the *only* reason `/warnaserror` is mandatory — it is what proves the chosen
   constructor shape emits no diagnostic CI would escalate.
   **DoD:** the command exits 0 with zero warnings. If it reports CS0414 or any "assigned but never
@@ -183,7 +183,7 @@ at activation, the exact defect 1.0.9 half-fixed.
   **DoD:** the two files show exactly four changed lines between them, in one editing pass.
 
 - [ ] **2.2 — Build.**
-  `dotnet build /Users/max/Code/ClubGear/plugins/CarInfo/CarInfo.Plugin.csproj -c Release /warnaserror`
+  `dotnet build /home/dev/Code/ClubGear/plugins/CarInfo/CarInfo.Plugin.csproj -c Release /warnaserror`
   Know its limits (design §6.2): it proves `new Version(1, 0, 10)` compiles and that nothing else in
   the file broke. It does **not** read `plugin.json` at all — that file is a `<None>` item — and
   **nothing validates a contract floor at build time**.
@@ -296,7 +296,7 @@ None of the following is part of this run, and doing any of them is a defect, no
 - **No `.gitlab-ci.yml` change.** The `test` job stays rule-gated off.
 - **No ADR tree.** No `adr/`, no `ADRs/`, no `docs/` directory is created in this repository.
 - **No test project.**
-- **No edit to the ClubGear core checkout at `/Users/max/Code/ClubGear`** — of any kind. This
+- **No edit to the ClubGear core checkout at `/home/dev/Code/ClubGear`** — of any kind. This
   explicitly includes `docs/plugin-contract.md`, whose canonical-constructor example diverges from
   the shape chosen here. That alignment is a **core-owned follow-up to be filed, not performed**
   (design §7, §8).

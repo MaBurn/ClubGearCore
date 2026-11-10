@@ -68,6 +68,7 @@ public static class ServiceCollectionExtensions
             .Configure<IConfiguration>((options, configuration) => configuration.GetSection("Plugins").Bind(options));
         // CORE-13. Singleton because it holds no state of its own: it reads the runtime registry,
         // which is where activation and deactivation already take effect.
+        services.AddSingleton<IPluginProviderSelectionService, PluginProviderSelectionService>();
         services.AddSingleton<IPluginProviderRegistry, PluginProviderRegistry>();
         // CORE-18. Singleton: it owns no state either, it just builds a scope per lease and keeps
         // the module counted as busy for the lease's lifetime.

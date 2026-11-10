@@ -309,7 +309,7 @@ public sealed class PluginBoundaryTests
                 .Append($"[submodule \"plugins/{divergentModule}\"]\n\tactive = true\n")
                 .Append($"\turl = {PlantedLocalUrl}\n")
                 .Append($"[submodule \"plugins/{rewrittenModule}\"]\n\tactive = true\n")
-                .Append($"\turl = https://gitlab-ci-token:AbC-123@git.maxbrenne.de/clubgear/plugin-{rewrittenModule.ToLowerInvariant()}.git\n");
+                .Append($"\turl = https://gitlab-ci-token:AbC-123@git.example.org/clubgear/plugin-{rewrittenModule.ToLowerInvariant()}.git\n");
 
             Directory.CreateDirectory(Path.Combine(plantedRoot, ".git"));
             File.WriteAllText(Path.Combine(plantedRoot, ".git", "config"), effective.ToString());
@@ -426,11 +426,11 @@ public sealed class PluginBoundaryTests
         return violations;
     }
 
-    private const string PlantedLocalUrl = "/Users/max/Code/ClubGear/plugins/Finance";
+    private const string PlantedLocalUrl = "/home/dev/Code/ClubGear/plugins/Finance";
 
     private static string DeclaredTestUrl(string module)
     {
-        return $"git@git.maxbrenne.de:clubgear/plugin-{module.ToLowerInvariant()}.git";
+        return $"git@git.example.org:clubgear/plugin-{module.ToLowerInvariant()}.git";
     }
 
     private const string EmbeddedRepositoryMarker = "embedded repository";

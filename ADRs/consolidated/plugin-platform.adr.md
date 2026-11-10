@@ -1442,6 +1442,8 @@ The container is built once during `Program.cs` startup, whereas plugins are act
 
 ## 2026-09-02 - A Capability Collision Is Logged and Resolved Deterministically, Never Thrown
 
+> **Superseded 2026-11-10** by "A Single-Active Provider Runs Only When an Administrator Selects It" (CORE-14). The "never thrown" half still holds.
+
 ### Decision
 
 When several plugins claim the same `SingleActive` capability, `IPluginProviderRegistry.Resolve` returns the candidate whose module id sorts first, logs a warning naming every competing module, and continues. Selection by an administrator is CORE-14 and is not implemented here.
@@ -1535,3 +1537,13 @@ The load-time gate is the load-bearing part. `IContractCompatibilityService` is 
 **Implementation note (2026-09-05).** `PluginLoader` takes `IContractCompatibilityService` as an *optional* constructor parameter defaulting to the real `ContractCompatibilityService`, rather than as a required one. The host resolves the registered implementation through DI either way, and the default means the floor applies everywhere unless a test deliberately substitutes — which `ServiceBookDependencyActivationSmokeTests` does, and is what lets it reach the constructor-shape rejection specifically. This follows the same pattern the CORE-17 work applied to `PluginRegistry`, `PluginRuntimeAdapter` and `PluginBackgroundJobRunner`, and avoided a purely mechanical edit at roughly twenty existing `new PluginLoader(store, logger)` call sites.
 
 The consequence is accepted and stated rather than mitigated: all five shipped submodules stop activating at HEAD until their own repositories adopt. `FinanceBugfixTypeloadTests` and `ServiceBookDependencyActivationSmokeTests`, which today round-trip real submodule types, are rewritten to assert the new rejection, making them the pinning tests for the break instead of casualties of it.
+
+## 2026-11-10 - A Single-Active Provider Runs Only When an Administrator Selects It
+
+### Decision
+
+CORE-14. `IPluginProviderRegistry.Resolve` resolves only the provider an administrator selected for the capability key. Without a selection it returns an empty lease and the caller uses the core default, however many plugins claim the key. A selection whose plugin is not active also yields the core default. The selection lives in `IPluginProviderSelectionService` (singleton), is persisted in `SystemConfigEntries` under section `plugin.provider-selection` (name = capability key, value = module id, empty = core default), is changed only through `PluginProviderSelectionController` behind `AdminAccess` and antiforgery, accepts only an active plugin that claims the key, and is audited as `plugin.provider.selected`. `FanOut` keys have no selection. Per-provider enable/disable for fan-out keys is deferred until a fan-out key has a consumer.
+
+### Rationale
+
+R3 requires that a storage plugin can supersede the core default, and that installing a plugin never silently changes where data goes. Picking the first module id, the 2026-09-02 behaviour, did exactly that as soon as one storage plugin was installed. Reusing `SystemConfigEntries` avoids a migration for what is a handful of key/value pairs. The read is cached per process because `Resolve` is synchronous and called on every provider use; the only writer invalidates it, which is sufficient for the single-instance SQLite deployment. No core code called `Resolve` when this changed, so no caller's behaviour moved.

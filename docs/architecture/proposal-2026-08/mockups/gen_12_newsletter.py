@@ -5,7 +5,7 @@ o, top = chrome(active="Plugins", eyebrow_text="Plugin · NEWS-01  ·  new plugi
                 subtitle="Consent-aware campaigns on top of core templates and channels. Listmonk is an optional adapter, not a premise.",
                 unread=3, actions=[("Dry run", "outline"), ("Request approval", "primary")])
 out = [o]
-b, _ = badge(310, 82, "draft · created by M. Brenne", "grey"); out.append(b)
+b, _ = badge(310, 82, "draft · created by M. Mustermann", "grey"); out.append(b)
 
 # composer
 p, cy = panel(28, top, 620, 372, "Composition")

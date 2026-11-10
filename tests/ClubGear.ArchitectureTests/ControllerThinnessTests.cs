@@ -58,6 +58,7 @@ public sealed class ControllerThinnessTests
         yield return new object[] { typeof(AccountApiController) };
         yield return new object[] { typeof(SelfServiceApiController) };
         yield return new object[] { typeof(PluginsController) };
+        yield return new object[] { typeof(PluginProviderSelectionController) };
     }
 
     public static IEnumerable<object[]> ExpectedControllerDependencies()
@@ -70,5 +71,6 @@ public sealed class ControllerThinnessTests
         yield return new object[] { typeof(AccountApiController), new[] { typeof(IAccountFeatureService) } };
         yield return new object[] { typeof(SelfServiceApiController), new[] { typeof(ISelfServiceFeatureService), typeof(IMemberPluginSlotService), typeof(ISelfServiceSectionService) } };
         yield return new object[] { typeof(PluginsController), new[] { typeof(IPluginInstallerService), typeof(IPluginLifecycleService), typeof(IPluginAdminQueryService) } };
+        yield return new object[] { typeof(PluginProviderSelectionController), new[] { typeof(IPluginProviderSelectionService) } };
     }
 }

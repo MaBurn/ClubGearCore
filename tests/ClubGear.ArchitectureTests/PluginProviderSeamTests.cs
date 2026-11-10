@@ -94,20 +94,60 @@ public class PluginProviderSeamTests
     }
 
     [Fact]
-    public void Resolve_ToleratesACollision_InsteadOfThrowing()
+    public void Resolve_ToleratesACollision_AndUsesTheCoreDefault_UntilAnAdministratorSelects()
     {
         // The finding this seam exists to fix: NotificationService builds a name-keyed dictionary
         // with ToDictionary in its constructor, so two plugins claiming one key is a scope
-        // construction failure. Here it must be a logged, deterministic choice.
+        // construction failure. CORE-14: here it is a resolvable state, and nobody is picked.
         var registry = BuildRegistry(
             MakeRuntime("zulu", (PluginCapabilityKeys.StorageBlob, typeof(TestChannelProvider).FullName!)),
             MakeRuntime("alpha", (PluginCapabilityKeys.StorageBlob, typeof(TestChannelProvider).FullName!)));
 
         using var resolved = registry.Resolve<ITestChannel>(PluginCapabilityKeys.StorageBlob);
 
+        Assert.Null(resolved.Instance);
+        Assert.Contains("Core-Standard", resolved.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Resolve_WithoutSelection_UsesTheCoreDefault_EvenWithASingleClaimant()
+    {
+        // R3: installing a storage plugin must never silently change where files are stored.
+        var registry = BuildRegistry(
+            MakeRuntime("alpha", (PluginCapabilityKeys.StorageBlob, typeof(TestChannelProvider).FullName!)));
+
+        using var resolved = registry.Resolve<ITestChannel>(PluginCapabilityKeys.StorageBlob);
+
+        Assert.Null(resolved.Instance);
+    }
+
+    [Fact]
+    public void Resolve_ReturnsTheSelectedProvider_AndConstructsNoOther()
+    {
+        TestChannelProvider.ConstructionCount = 0;
+        var registry = BuildRegistry(
+            new FakeSelection { [PluginCapabilityKeys.StorageBlob] = "zulu" },
+            MakeRuntime("zulu", (PluginCapabilityKeys.StorageBlob, typeof(TestChannelProvider).FullName!)),
+            MakeRuntime("alpha", (PluginCapabilityKeys.StorageBlob, typeof(TestChannelProvider).FullName!)));
+
+        using var resolved = registry.Resolve<ITestChannel>(PluginCapabilityKeys.StorageBlob);
+
         Assert.NotNull(resolved.Instance);
-        Assert.Equal("alpha", resolved.ModuleId);
-        Assert.Equal("alpha", registry.GetRegistrations(PluginCapabilityKeys.StorageBlob)[0].ModuleId);
+        Assert.Equal("zulu", resolved.ModuleId);
+        Assert.Equal(1, TestChannelProvider.ConstructionCount);
+    }
+
+    [Fact]
+    public void Resolve_FallsBackToTheCoreDefault_WhenTheSelectedPluginIsNotActive()
+    {
+        var registry = BuildRegistry(
+            new FakeSelection { [PluginCapabilityKeys.StorageBlob] = "gone" },
+            MakeRuntime("alpha", (PluginCapabilityKeys.StorageBlob, typeof(TestChannelProvider).FullName!)));
+
+        using var resolved = registry.Resolve<ITestChannel>(PluginCapabilityKeys.StorageBlob);
+
+        Assert.Null(resolved.Instance);
+        Assert.Contains("gone", resolved.Error, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -152,6 +192,9 @@ public class PluginProviderSeamTests
     // ----------------------------------------------------------------
 
     private static IPluginProviderRegistry BuildRegistry(params RegisteredPluginRuntime[] runtimes)
+        => BuildRegistry(new FakeSelection(), runtimes);
+
+    private static IPluginProviderRegistry BuildRegistry(FakeSelection selection, params RegisteredPluginRuntime[] runtimes)
     {
         var runtimeRegistry = new PluginRegistry();
         foreach (var runtime in runtimes)
@@ -164,6 +207,7 @@ public class PluginProviderSeamTests
         return new PluginProviderRegistry(
             runtimeRegistry,
             TestContributionActivatorFactory.Create(runtimeRegistry, new StubPluginRuntimeAdapter()),
+            selection,
             NullLogger<PluginProviderRegistry>.Instance);
     }
 
@@ -183,6 +227,16 @@ public class PluginProviderSeamTests
             Array.Empty<PluginAuditSinkContribution>(),
             Array.Empty<PluginIdentityProviderContribution>(),
             Array.Empty<PluginSelfServiceProfileProviderContribution>());
+
+    private sealed class FakeSelection : Dictionary<string, string>, IPluginProviderSelectionService
+    {
+        public string? GetSelectedModuleId(string capabilityKey) => TryGetValue(capabilityKey, out var id) ? id : null;
+
+        public IReadOnlyList<PluginProviderSelectionStatus> GetStatuses() => throw new NotSupportedException();
+
+        public Task<PluginProviderSelectionResult> SelectAsync(string capabilityKey, string? moduleId, string? actor, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+    }
 
     public interface ITestChannel
     {

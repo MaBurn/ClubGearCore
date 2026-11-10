@@ -16,8 +16,8 @@ ARCHIVE="clubgear-${TAG}.tar.gz"
 
 if [[ -z "$SSH_HOST" ]]; then
     echo "Verwendung: ./scripts/deploy.sh [tag] <user@host>"
-    echo "Beispiel:   ./scripts/deploy.sh max@192.168.1.10          (Tag: $(clubgear_version))"
-    echo "            ./scripts/deploy.sh 2026.7.1 max@192.168.1.10"
+    echo "Beispiel:   ./scripts/deploy.sh user@192.168.1.10          (Tag: $(clubgear_version))"
+    echo "            ./scripts/deploy.sh 2026.7.1 user@192.168.1.10"
     exit 1
 fi
 

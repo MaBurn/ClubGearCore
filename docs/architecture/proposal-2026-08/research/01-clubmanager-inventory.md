@@ -1,6 +1,6 @@
 # What Clubmanager already implements
 
-Source: `/Users/max/Code/Clubmanager` (working copy, surveyed 2026-08-30).
+Source: `/home/dev/Code/Clubmanager` (working copy, surveyed 2026-08-30).
 Method: controller and action inventory, `Models/ClubManagerContext.cs` DbSet inventory,
 `Services/` inventory, `Views/` inventory. Sizes are file sizes on disk — a rough but honest
 proxy for how much behaviour sits in one place.

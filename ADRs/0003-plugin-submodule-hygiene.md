@@ -33,10 +33,10 @@ before the first `/`, delete everything up to and including the **last** `@`; in
 replace a `:` with `/`; collapse repeated `/`; lowercase.
 
 Two URLs match when their canonical forms are byte-equal. Therefore
-`git@git.maxbrenne.de:clubgear/plugin-finance.git` and
-`https://gitlab-ci-token:<token>@git.maxbrenne.de/clubgear/plugin-finance.git` both canonicalise to
-`git.maxbrenne.de/clubgear/plugin-finance` and match, while the CORE-23 defect
-`/Users/max/Code/ClubGear/plugins/Finance` keeps a leading `/` through every step and can never
+`git@git.example.org:clubgear/plugin-finance.git` and
+`https://gitlab-ci-token:<token>@git.example.org/clubgear/plugin-finance.git` both canonicalise to
+`git.example.org/clubgear/plugin-finance` and match, while the CORE-23 defect
+`/home/dev/Code/ClubGear/plugins/Finance` keeps a leading `/` through every step and can never
 match a host-rooted form.
 
 Deleting to the *last* `@` is normative: the CI token may itself contain `@`. Scoping the `:`→`/`

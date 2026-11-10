@@ -94,7 +94,7 @@ public sealed class MemberFeatureService : IMemberFeatureService
             .Select(m => new { m.Id, m.FirstName, m.LastName, m.MemberNumber })
             .ToListAsync(cancellationToken);
 
-        // Every typed term (e.g. "Brenne" and "Maximilian" from "Brenne Maximilian") must match
+        // Every typed term (e.g. "Mustermann" and "Erika" from "Mustermann Erika") must match
         // some field, but each term can match any of first name / last name / member number - this
         // isn't translatable to SQL reliably across providers, so it's filtered in memory.
         var matches = terms.Length == 0

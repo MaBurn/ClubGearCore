@@ -1,0 +1,61 @@
+@model IReadOnlyList<ClubGear.Services.Abstractions.PluginProviderSelectionStatus>
+@{
+    // Only capabilities somebody claims or has selected are worth showing.
+    var relevant = Model.Where(s => s.ClaimantModuleIds.Count > 0 || s.SelectedModuleId is not null).ToList();
+}
+
+@if (relevant.Count > 0)
+{
+    <section class="cg-page-section" data-plugin-provider-selection>
+        <div class="plugin-admin-section-heading">
+            <div>
+                <p class="plugin-admin-eyebrow">Provider</p>
+                <h2 class="plugin-admin-section-title">Provider-Auswahl</h2>
+            </div>
+        </div>
+
+        <div class="cg-panel p-3">
+            <p class="text-muted small">
+                Ohne Auswahl gilt der Core-Standard. Ein installiertes Plugin übernimmt eine Capability erst, wenn es hier ausgewählt ist.
+            </p>
+
+            @foreach (var status in relevant)
+            {
+                var selectId = "provider-select-" + status.CapabilityKey.Replace('.', '-');
+                <form asp-controller="PluginProviderSelection" asp-action="Select" method="post" class="row g-2 align-items-end mb-3" data-capability-key="@status.CapabilityKey">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="capabilityKey" value="@status.CapabilityKey" />
+                    <div class="col-sm-6">
+                        <label class="form-label" for="@selectId"><code>@status.CapabilityKey</code></label>
+                        <select id="@selectId" name="moduleId" class="form-select">
+                            <option value="" selected="@(status.SelectedModuleId is null)">Core-Standard</option>
+                            @foreach (var claimant in status.ClaimantModuleIds)
+                            {
+                                <option value="@claimant" selected="@(string.Equals(claimant, status.SelectedModuleId, StringComparison.OrdinalIgnoreCase))">@claimant</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-sm-auto">
+                        <button type="submit" class="btn btn-outline-primary">Übernehmen</button>
+                    </div>
+                    @if (status.IsSelectedProviderMissing)
+                    {
+                        <div class="col-12">
+                            <div class="alert alert-warning mb-0" role="status">
+                                Das ausgewählte Plugin <code>@status.SelectedModuleId</code> ist nicht aktiv. Bis es wieder aktiv ist, gilt der Core-Standard.
+                            </div>
+                        </div>
+                    }
+                    @if (status.HasUnresolvedCollision)
+                    {
+                        <div class="col-12">
+                            <div class="alert alert-warning mb-0" role="status">
+                                Mehrere Plugins beanspruchen diese Capability: @string.Join(", ", status.ClaimantModuleIds). Es gilt der Core-Standard, bis eines ausgewählt ist.
+                            </div>
+                        </div>
+                    }
+                </form>
+            }
+        </div>
+    </section>
+}
