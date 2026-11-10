@@ -50,6 +50,9 @@ public static class PluginHtml
         "form", "input", "select", "option", "optgroup", "textarea", "datalist", "output",
     ];
 
+    private static readonly HashSet<string> NamedControlTags =
+        new(StringComparer.OrdinalIgnoreCase) { "input", "select", "textarea", "button" };
+
     private static readonly HtmlSanitizer SectionSanitizer = Create(allowFormControls: true);
     private static readonly HtmlSanitizer EditTabSanitizer = Create(allowFormControls: false);
 
@@ -127,6 +130,13 @@ public static class PluginHtml
                 {
                     element.RemoveAttribute(name);
                 }
+            }
+
+            // On <form>, <img> and friends a name becomes a named property of document, which can
+            // shadow host APIs (document.querySelector). Only form-associated controls keep it.
+            if (element.HasAttribute("name") && !NamedControlTags.Contains(element.LocalName))
+            {
+                element.RemoveAttribute("name");
             }
 
             PrefixIds(element);

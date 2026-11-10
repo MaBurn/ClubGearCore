@@ -87,6 +87,9 @@ public sealed class PluginHtmlSanitisationTests
     [InlineData("<button data-plugin-member-action data-plugin-module-id=\"other.plugin\">x</button>", "data-plugin-module-id")]
     [InlineData("<button data-plugin-member-action data-plugin-member-id=\"999\">x</button>", "data-plugin-member-id")]
     [InlineData("<div data-plugin-content-endpoint=\"https://evil.example\">x</div>", "data-plugin-content-")]
+    [InlineData("<img src=\"/x.png\" name=\"querySelector\">", "name=")]
+    [InlineData("<form name=\"getElementById\"></form>", "name=")]
+    [InlineData("<div name=\"cookie\">x</div>", "name=")]
     public void BothProfiles_StripHostReservedAttributes(string html, string forbidden)
     {
         Assert.DoesNotContain(forbidden, PluginHtml.SanitizeSection(html), StringComparison.OrdinalIgnoreCase);
@@ -113,6 +116,9 @@ public sealed class PluginHtmlSanitisationTests
     [InlineData("javascript:alert(1)", false)]
     [InlineData("//evil.example/x", false)]
     [InlineData("/\\evil.example", false)]
+    [InlineData("/\t/evil.example", false)]
+    [InlineData("/\n/evil.example", false)]
+    [InlineData("/ /evil.example", false)]
     [InlineData("https://evil.example", false)]
     [InlineData("", false)]
     public void NavRoutes_MustBeAppRelative(string route, bool allowed)

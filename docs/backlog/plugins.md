@@ -185,7 +185,7 @@ drop what doesn't.
 |---|---|---|---|---|---|
 | CAR-03 | Port CarInfo's behaviour tests into its own test project. | `open` | P2 | `plugin-carinfo` | `CarInfoSlice1Tests.cs`–`CarInfoSlice5Tests.cs`, `CarInfoPluginSlice3Tests.cs`, and the CarInfo half of `PluginSlice3GroupKeyTests.cs` (edit tab in group `fahrzeuge`). |
 | FIN-03 | Port Finance's slice tests into `Finance.Tests`. | `open` | P2 | `plugin-finance` | `FinanceSlice1ValidatorTests.cs` through `FinanceSlice8ManualVerifyActionSlotTests.cs` (8 files). |
-| INV-03 | Port Inventar's plugin tests into its own test project. | `open` | P2 | `plugin-inventar` | `InventarPluginSliceTests.cs`. |
+| INV-03 | Port Inventar's plugin tests into its own test project. | `delivered` | P2 | `plugin-inventar` | Inventar `3aaece9`: `Inventar.Tests` (5 tests: manifest = `plugin.json`, contributions, page definition, empty rows, CRUD round trip), run in CI via `PLUGIN_TEST_PROJECT`. Not pushed yet. Inventar emits no HTML, so no CORE-31 item. |
 | SB-03 | Port ServiceBook's plugin tests into its own test project. | `open` | P2 | `plugin-servicebook` | `ServiceBookPluginTests.cs`, and the ServiceBook half of `PluginSlice3GroupKeyTests.cs` (edit tab in group `fahrzeuge`). |
 
 ## Adopting strict HTML sanitising (CORE-31)

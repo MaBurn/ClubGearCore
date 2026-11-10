@@ -5,7 +5,7 @@
          SemVer-Patch, sondern zählt die Releases des Monats (2026.7.0, 2026.7.1, …).
          Bewusst nur hier gesetzt, nicht in einer Directory.Build.props: Contracts/Plugin
          und die Plugins folgen SemVer und dürfen diese Version nicht erben. -->
-    <Version>2026.11.1</Version>
+    <Version>2026.11.2</Version>
     <Product>ClubGear</Product>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>

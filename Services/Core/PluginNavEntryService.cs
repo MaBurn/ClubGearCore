@@ -45,5 +45,7 @@ public sealed class PluginNavEntryService : IPluginNavEntryService
     internal static bool IsLocalRoute(string? route)
         => !string.IsNullOrEmpty(route)
            && route[0] == '/'
-           && (route.Length == 1 || (route[1] != '/' && route[1] != '\\'));
+           && (route.Length == 1 || (route[1] != '/' && route[1] != '\\'))
+           // Browsers strip tab/newline from URLs, so "/\t/evil.example" would become "//evil.example".
+           && !route.Any(c => char.IsControl(c) || char.IsWhiteSpace(c));
 }
